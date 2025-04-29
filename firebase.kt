@@ -618,5 +618,31 @@ object FirebaseService {
         val calendario = java.util.Calendar.getInstance()
         return dias[calendario.get(java.util.Calendar.DAY_OF_WEEK) - 1]
     }
+    fun obtenerBarberiaFavorita(
+        clienteId: String,
+        onResult: (String?) -> Unit
+    ) {
+        val db = Firebase.firestore
+        db.collection("usuarios").document(clienteId)
+            .get()
+            .addOnSuccessListener { document ->
+                val favoritoId = document.getString("barberiaFavoritaId")
+                onResult(favoritoId)
+            }
+            .addOnFailureListener {
+                onResult(null)
+            }
+    }
+    fun quitarBarberiaFavoritaCliente(
+        clienteId: String,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        Firebase.firestore.collection("usuarios").document(clienteId)
+            .update("barberiaFavoritaId", null)
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onFailure(it) }
+    }
+
 
 }

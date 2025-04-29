@@ -10,7 +10,7 @@ import androidx.navigation.NavHostController
 import com.github.jetbrains.rssreader.androidApp.FirebaseService
 import com.github.jetbrains.rssreader.androidApp.models.Barberia
 import com.github.jetbrains.rssreader.androidApp.components.SeleccionBarberiaScreen
-
+import com.github.jetbrains.rssreader.androidApp.components.BotonAccion
 @Composable
 fun InicioUsuarioScreen(
     navController: NavHostController
@@ -41,6 +41,7 @@ fun InicioUsuarioScreen(
     } else {
         SeleccionBarberiaScreen(
             barberiasDisponibles = barberiasDisponibles,
+            navController = navController, // <-- ⚡ Añades esta línea
             onSeleccionar = { barberiaSeleccionada ->
                 val clienteId = FirebaseService.getCurrentUser()?.uid
                 if (clienteId != null) {
