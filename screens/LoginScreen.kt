@@ -152,25 +152,64 @@ fun LoginScreen(navController: NavHostController) {
 
                                 if (userId != null) {
                                     db.collection("usuarios").document(userId).get()
-                                        .addOnSuccessListener { document ->
-                                            val rol = document.getString("rol") ?: "cliente"
+                                        .addOnSuccessListener { userDocument ->
+                                            val rol = userDocument.getString("rol") ?: "cliente"
+
                                             when (rol) {
-                                                "cliente" -> navController.navigate("home_cliente")
-                                                "peluquero" -> navController.navigate("home_peluquero")
-                                                "superpeluquero" -> navController.navigate("home_admin")
-                                                else -> navController.navigate("home_cliente") // fallback
+                                                "cliente" -> {
+                                                    // ✅ Ahora buscamos el idNegocio en clientes
+                                                    db.collection("clientes").document(userId).get()
+                                                        .addOnSuccessListener { clientDoc ->
+                                                            val idNegocio = clientDoc.getString("idnegocio") ?: ""
+                                                            if (idNegocio.isEmpty()) {
+                                                                // ➡️ No tiene barbería favorita ➔ ir a seleccionar barbería
+                                                                navController.navigate("inicio_usuario") {
+                                                                    popUpTo(0) { inclusive = true }
+                                                                    launchSingleTop = true
+                                                                }
+                                                            } else {
+                                                                // ➡️ Ya tiene barbería ➔ ir a home_cliente
+                                                                navController.navigate("home_cliente") {
+                                                                    popUpTo(0) { inclusive = true }
+                                                                    launchSingleTop = true
+                                                                }
+                                                            }
+                                                        }
+                                                        .addOnFailureListener { e ->
+                                                            Log.e("LOGIN_FIRESTORE", "Error leyendo cliente: ${e.message}")
+                                                            errorMessage = "Error verificando cliente."
+                                                            showErrorDialog = true
+                                                        }
+                                                }
+                                                "peluquero" -> {
+                                                    navController.navigate("home_peluquero") {
+                                                        popUpTo(0) { inclusive = true }
+                                                        launchSingleTop = true
+                                                    }
+                                                }
+                                                "superpeluquero" -> {
+                                                    navController.navigate("home_admin") {
+                                                        popUpTo(0) { inclusive = true }
+                                                        launchSingleTop = true
+                                                    }
+                                                }
+                                                else -> {
+                                                    navController.navigate("start") {
+                                                        popUpTo(0) { inclusive = true }
+                                                        launchSingleTop = true
+                                                    }
+                                                }
                                             }
                                         }
                                         .addOnFailureListener { e ->
-                                            Log.e("LOGIN_FIRESTORE", "Error al obtener el rol: ${e.message}")
-                                            errorMessage = "Error al verificar el rol del usuario."
+                                            Log.e("LOGIN_FIRESTORE", "Error leyendo usuario: ${e.message}")
+                                            errorMessage = "Error verificando usuario."
                                             showErrorDialog = true
                                         }
                                 } else {
                                     errorMessage = "No se pudo obtener el ID del usuario."
                                     showErrorDialog = true
                                 }
-
                             } else {
                                 val exception = task.exception
                                 errorMessage = when (exception) {
@@ -185,7 +224,9 @@ fun LoginScreen(navController: NavHostController) {
                             }
                         }
                 },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
                 colors = ButtonDefaults.buttonColors(
                     backgroundColor = Color(0xFFFF6680),
                     contentColor = Color.White

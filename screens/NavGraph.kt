@@ -1,5 +1,6 @@
 package com.github.jetbrains.rssreader.androidApp
 
+import android.util.Log
 import com.github.jetbrains.rssreader.androidApp.screens.InicioUsuarioScreen
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -14,84 +15,101 @@ import androidx.navigation.compose.composable
 import com.github.jetbrains.rssreader.androidApp.screens.*
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
 
 @Composable
 fun AppNavigation(navController: NavHostController) {
+    var checking by remember { mutableStateOf(true) }
     val currentUser = FirebaseService.getCurrentUser()
-    var startDestination by remember { mutableStateOf<String?>(null) }
 
-    if (startDestination == null) {
-        LaunchedEffect(Unit) {
-            if (currentUser == null) {
-                startDestination = "start"
-            } else {
-                FirebaseService.getUserRole(
-                    uid = currentUser.uid,
-                    onSuccess = { rol ->
-                        if (rol == "cliente") {
-                            // ⚠️ Leer desde la colección CLIENTES (no usuarios)
-                            FirebaseFirestore.getInstance()
-                                .collection("clientes")
-                                .document(currentUser.uid)
-                                .get()
-                                .addOnSuccessListener { doc ->
-                                    val idNegocio = doc.getString("idnegocio")
-                                    startDestination = if (idNegocio.isNullOrBlank()) {
-                                        "inicio_usuario"
-                                    } else {
-                                        "home_cliente"
-                                    }
-                                }
-                                .addOnFailureListener {
-                                    startDestination = "inicio_usuario"
-                                }
+    LaunchedEffect(currentUser) {
+        if (currentUser == null) {
+            checking = false
+            navController.navigate("start") {
+                popUpTo(0) { inclusive = true }
+                launchSingleTop = true
+            }
+        } else {
+            try {
+                val clienteDoc = FirebaseFirestore.getInstance()
+                    .collection("clientes")
+                    .document(currentUser.uid)
+                    .get()
+                    .await()
+
+                if (clienteDoc.exists()) {
+                    val rol = clienteDoc.getString("rol") ?: ""
+                    val idNegocio = clienteDoc.getString("idnegocio") ?: ""
+
+                    if (rol == "cliente") {
+                        if (idNegocio.isEmpty()) {
+                            // No tiene barbería aún
+                            navController.navigate("inicio_usuario") {
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
+                            }
                         } else {
-                            startDestination = when (rol) {
-                                "peluquero" -> "home_peluquero"
-                                "superpeluquero" -> "home_admin"
-                                else -> "start"
+                            // Ya tiene barbería asignada
+                            navController.navigate("home_cliente") {
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
                             }
                         }
-                    },
-                    onFailure = {
-                        startDestination = "start"
+                    } else {
+                        // Si no es cliente, rol inválido
+                        navController.navigate("start") {
+                            popUpTo(0) { inclusive = true }
+                            launchSingleTop = true
+                        }
                     }
-                )
+                } else {
+                    // No existe el documento en clientes (mal login o usuario sin datos)
+                    navController.navigate("start") {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+
+            } catch (e: Exception) {
+                Log.e("AppNavigation", "Error detectando usuario: ${e.message}")
+                navController.navigate("start") {
+                    popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
+                }
+            } finally {
+                checking = false
             }
         }
+    }
 
-        SplashLoading()
-    } else {
-        NavHost(navController = navController, startDestination = startDestination!!) {
-            composable("start") { StartScreen(navController) }
-            composable("login") { LoginScreen(navController) }
-            composable("register") { RegisterScreen(navController) }
+    NavHost(
+        navController = navController,
+        startDestination = if (checking) "splash" else "start"
+    ) {
+        composable("splash") { SplashLoading() }
+        composable("start") { StartScreen(navController) }
+        composable("login") { LoginScreen(navController) }
+        composable("register") { RegisterScreen(navController) }
 
-            composable("home_cliente") { HomeClienteScreen(navController) }
-            composable("home_admin") { HomeAdminScreen(navController) }
-            composable("home_peluquero") { AdminPeluqueroScreen(navController) }
+        composable("home_cliente") { HomeClienteScreen(navController) }
+        composable("home_admin") { HomeAdminScreen(navController) }
+        composable("home_peluquero") { AdminPeluqueroScreen(navController) }
+        composable("inicio_usuario") { InicioUsuarioScreen(navController) }
 
-            composable("mi_cuenta") { MiCuentaScreen(navController) }
-            composable("servicios_cliente") { ServiciosClienteScreen(navController) }
-            composable("pedir_cita") { PedirCitaScreen(navController) }
-            composable("forgot_password") { ForgotClientPasswordScreen(navController) }
-
-            composable("configuracion_firebase") { ConfiguracionFirebaseScreen() }
-            composable("mi_cuenta_Admin") { MiCuentaAdminScreen(navController) }
-            composable("gestionar_negocio") { GestionarNegocioScreen(navController) }
-            composable("pantalla_gestion_servicios") { AdminServiciosScreen(navController) }
-            composable("admin_add_service") { AdminAddServiceScreen(navController) }
-            composable("edit_service/{negocioId}/{serviceId}") { backStackEntry ->
-                val negocioId = backStackEntry.arguments?.getString("negocioId") ?: ""
-                val serviceId = backStackEntry.arguments?.getString("serviceId") ?: ""
-                EditServiceScreen(navController, negocioId, serviceId)
-            }
-            composable("pantalla_ver_citas") { AdminVerCitasScreen(navController) }
-            composable("pantalla_gestion_trabajadores") { AdminGestionarTrabajadoresScreen(navController) }
-
-            // Pantalla de selección de barbería favorita
-            composable("inicio_usuario") { InicioUsuarioScreen(navController) }
+        composable("forgot_password") { ForgotClientPasswordScreen(navController) }
+        composable("configuracion_firebase") { ConfiguracionFirebaseScreen() }
+        composable("mi_cuenta") { MiCuentaScreen(navController) }
+        composable("servicios_cliente") { ServiciosClienteScreen(navController) }
+        composable("pedir_cita") { PedirCitaScreen(navController) }
+        composable("pantalla_gestion_servicios") { AdminServiciosScreen(navController) }
+        composable("admin_add_service") { AdminAddServiceScreen(navController) }
+        composable("edit_service/{negocioId}/{serviceId}") { backStackEntry ->
+            val negocioId = backStackEntry.arguments?.getString("negocioId") ?: ""
+            val serviceId = backStackEntry.arguments?.getString("serviceId") ?: ""
+            EditServiceScreen(navController, negocioId, serviceId)
         }
+        composable("pantalla_ver_citas") { AdminVerCitasScreen(navController) }
+        composable("pantalla_gestion_trabajadores") { AdminGestionarTrabajadoresScreen(navController) }
     }
 }
 
