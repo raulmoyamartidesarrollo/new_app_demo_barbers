@@ -187,6 +187,21 @@ fun HomeClienteScreen(navController: NavHostController) {
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
+
+
+                Button(
+                    onClick = {
+                        navController.navigate("inicio_usuario") {
+                            popUpTo("home_cliente") { inclusive = true }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color(0xFFE57373),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("Seleccionar otra peluquería")
+                }
             }
 
             ChatBotCliente()

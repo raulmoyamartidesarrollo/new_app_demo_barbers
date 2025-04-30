@@ -48,7 +48,6 @@ fun SeleccionBarberiaScreen(
     var mostrarAlerta by remember { mutableStateOf(true) }
     var iniciarAnimacion by remember { mutableStateOf(false) }
     var paginaActual by remember { mutableStateOf(0) }
-    var mostrarConfirmacion by remember { mutableStateOf(false) }
     var barberiaSeleccionada by remember { mutableStateOf<Barberia?>(null) }
     var mostrarServicios by remember { mutableStateOf(false) }
     var serviciosActuales by remember { mutableStateOf<List<Map<String, Any>>>(emptyList()) }
@@ -113,82 +112,42 @@ fun SeleccionBarberiaScreen(
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            Text(
-                                text = barberia.nombre.uppercase(),
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                            Text(
-                                text = "${barberia.direccion} • Abierto hasta ${barberia.horaCierre}",
-                                fontSize = 14.sp,
-                                color = Color.Gray
-                            )
+                            Text(barberia.nombre.uppercase(), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("${barberia.direccion} • Abierto hasta ${barberia.horaCierre}", fontSize = 14.sp, color = Color.Gray)
 
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            Row(
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                BotonAccion(
-                                    texto = "Servicios",
-                                    icono = Icons.Default.CalendarToday,
-                                    seleccionado = true,
-                                    onClick = {
-                                        FirebaseService.getServiciosNegocio(
-                                            negocioId = barberia.id,
-                                            onSuccess = {
-                                                serviciosActuales = it
-                                                mostrarServicios = true
-                                            },
-                                            onFailure = {
-                                                Log.e("FIREBASE_DEBUG", "Error al obtener servicios: ${it.message}")
-                                            }
-                                        )
-                                    }
-                                )
-
-                                BotonAccion(
-                                    texto = "Favorito",
-                                    icono = if (favoritoId == barberia.id) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                    seleccionado = false,
-                                    onClick = {
-                                        val clienteId = FirebaseService.getCurrentUser()?.uid
-                                        clienteId?.let {
-                                            if (favoritoId == barberia.id) {
-                                                FirebaseService.quitarBarberiaFavoritaCliente(
-                                                    clienteId = it,
-                                                    onSuccess = { favoritoId = null },
-                                                    onFailure = {}
-                                                )
-                                            } else {
-                                                FirebaseService.guardarBarberiaFavoritaCliente(
-                                                    clienteId = it,
-                                                    idNegocio = barberia.id,
-                                                    onSuccess = {
-                                                        favoritoId = barberia.id
-                                                        barberiaSeleccionada = barberia
-                                                        mostrarConfirmacion = true
-                                                    },
-                                                    onFailure = {}
-                                                )
-                                            }
+                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                BotonAccion("Servicios", Icons.Default.CalendarToday, true) {
+                                    FirebaseService.getServiciosNegocio(barberia.id, {
+                                        serviciosActuales = it
+                                        mostrarServicios = true
+                                    }, {
+                                        Log.e("FIREBASE_DEBUG", "Error al obtener servicios: ${it.message}")
+                                    })
+                                }
+                                BotonAccion("Favorito", if (favoritoId == barberia.id) Icons.Default.Favorite else Icons.Default.FavoriteBorder) {
+                                    val clienteId = FirebaseService.getCurrentUser()?.uid
+                                    clienteId?.let {
+                                        if (favoritoId == barberia.id) {
+                                            FirebaseService.quitarBarberiaFavoritaCliente(it, {
+                                                favoritoId = null
+                                            }, {})
+                                        } else {
+                                            FirebaseService.guardarBarberiaFavoritaCliente(it, barberia.id, {
+                                                favoritoId = barberia.id
+                                                barberiaSeleccionada = barberia
+                                            }, {})
                                         }
                                     }
-                                )
-                                BotonAccion(
-                                    texto = "Localización",
-                                    icono = Icons.Default.LocationOn,
-                                    seleccionado = false,
-                                    onClick = {
-                                        val intent = Intent(Intent.ACTION_VIEW).apply {
-                                            data = Uri.parse("geo:0,0?q=${Uri.encode(barberia.direccion)}")
-                                            setPackage("com.google.android.apps.maps")
-                                        }
-                                        context.startActivity(intent)
+                                }
+                                BotonAccion("Localización", Icons.Default.LocationOn) {
+                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                        data = Uri.parse("geo:0,0?q=${Uri.encode(barberia.direccion)}")
+                                        setPackage("com.google.android.apps.maps")
                                     }
-                                )
+                                    context.startActivity(intent)
+                                }
                             }
 
                             Spacer(modifier = Modifier.height(24.dp))
@@ -203,70 +162,51 @@ fun SeleccionBarberiaScreen(
 
                             Text("Peluqueros", fontSize = 14.sp, color = Color.Gray)
                             Spacer(modifier = Modifier.height(8.dp))
-
                             val peluqueros = peluquerosPorBarberia[barberia.id] ?: emptyList()
                             Column {
-                                peluqueros.forEach { peluquero ->
+                                peluqueros.forEach {
                                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
                                         Box(
-                                            modifier = Modifier
-                                                .size(48.dp)
-                                                .clip(CircleShape)
-                                                .background(Color.LightGray),
+                                            modifier = Modifier.size(48.dp).clip(CircleShape).background(Color.LightGray),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Text(
-                                                text = peluquero.nombre.take(1).uppercase(),
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 18.sp
-                                            )
+                                            Text(it.nombre.take(1).uppercase(), fontWeight = FontWeight.Bold, fontSize = 18.sp)
                                         }
                                         Spacer(modifier = Modifier.width(12.dp))
-                                        Text(
-                                            text = "${peluquero.nombre} ${peluquero.apellidos}",
-                                            fontSize = 14.sp,
-                                            color = Color.White
-                                        )
+                                        Text("${it.nombre} ${it.apellidos}", fontSize = 14.sp, color = Color.White)
                                     }
                                 }
-                                if (peluqueros.isEmpty()) {
-                                    Text("No hay peluqueros disponibles.", fontSize = 12.sp, color = Color.LightGray)
-                                }
+                                if (peluqueros.isEmpty()) Text("No hay peluqueros disponibles.", fontSize = 12.sp, color = Color.LightGray)
                             }
 
                             Spacer(modifier = Modifier.height(16.dp))
-
                             Text("Descripción", fontSize = 14.sp, color = Color.Gray)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit...",
-                                fontSize = 13.sp,
-                                color = Color.White
-                            )
+                            Text("Lorem ipsum dolor sit amet, consectetur adipiscing elit...", fontSize = 13.sp, color = Color.White)
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth()
+            val puedeContinuar = remember(favoritoId) { favoritoId != null }
+
+            Button(
+                onClick = {
+                    navController.navigate("home_cliente") {
+                        popUpTo("inicio_usuario") { inclusive = true }
+                    }
+                },
+                enabled = puedeContinuar,
+                modifier = Modifier.fillMaxWidth(0.7f).height(50.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (puedeContinuar) Color(0xFFFF6680) else Color.Gray,
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                barberiasDisponibles.forEachIndexed { index, _ ->
-                    val size by animateDpAsState(
-                        targetValue = if (index == paginaActual) 12.dp else 8.dp,
-                        animationSpec = tween(300)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(size)
-                            .padding(horizontal = 4.dp)
-                            .clip(CircleShape)
-                            .background(if (index == paginaActual) Color.White else Color.Gray)
-                    )
-                }
+                Text("Continuar", fontWeight = FontWeight.Bold)
             }
         }
 
@@ -281,23 +221,13 @@ fun SeleccionBarberiaScreen(
                 title = { Text("Servicios disponibles") },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        serviciosActuales.forEach { servicio ->
-                            val nombre = servicio["nombre"]?.toString() ?: "Sin nombre"
-                            val precio = servicio["precio"]?.toString() ?: "0€"
-                            val duracion = servicio["duracion"]?.toString() ?: "0 min"
-
+                        serviciosActuales.forEach {
+                            val nombre = it["nombre"]?.toString() ?: "Sin nombre"
+                            val precio = it["precio"]?.toString() ?: "0€"
+                            val duracion = it["duracion"]?.toString() ?: "0 min"
                             Column {
-                                Text(
-                                    text = nombre,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                                Text(
-                                    text = "Duración: $duracion • Precio: $precio",
-                                    fontSize = 13.sp,
-                                    color = Color.LightGray
-                                )
+                                Text(nombre, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text("Duración: $duracion • Precio: $precio", fontSize = 13.sp, color = Color.LightGray)
                                 Divider(color = Color.Gray.copy(alpha = 0.3f))
                             }
                         }
@@ -312,30 +242,15 @@ fun SeleccionBarberiaScreen(
 }
 
 @Composable
-fun BotonAccion(
-    texto: String,
-    icono: ImageVector,
-    seleccionado: Boolean = false,
-    onClick: () -> Unit
-) {
+fun BotonAccion(texto: String, icono: ImageVector, seleccionado: Boolean = false, onClick: () -> Unit) {
     val backgroundColor = if (seleccionado) Color(0xFF0A84FF) else Color.White
     val contentColor = if (seleccionado) Color.White else Color.Black
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .width(90.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(backgroundColor)
-            .clickable { onClick() }
-            .padding(vertical = 12.dp)
+        modifier = Modifier.width(90.dp).clip(RoundedCornerShape(12.dp)).background(backgroundColor).clickable { onClick() }.padding(vertical = 12.dp)
     ) {
-        Icon(
-            imageVector = icono,
-            contentDescription = texto,
-            tint = contentColor,
-            modifier = Modifier.size(24.dp)
-        )
+        Icon(icono, contentDescription = texto, tint = contentColor, modifier = Modifier.size(24.dp))
         Spacer(modifier = Modifier.height(4.dp))
         Text(texto, color = contentColor, fontSize = 14.sp)
     }
