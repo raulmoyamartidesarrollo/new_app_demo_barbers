@@ -41,24 +41,7 @@ fun InicioUsuarioScreen(
     } else {
         SeleccionBarberiaScreen(
             barberiasDisponibles = barberiasDisponibles,
-            navController = navController, // <-- ⚡ Añades esta línea
-            onSeleccionar = { barberiaSeleccionada ->
-                val clienteId = FirebaseService.getCurrentUser()?.uid
-                if (clienteId != null) {
-                    FirebaseService.guardarBarberiaFavoritaCliente(
-                        clienteId = clienteId,
-                        idNegocio = barberiaSeleccionada.id,
-                        onSuccess = {
-                            navController.navigate("home_cliente") {
-                                popUpTo("inicio_usuario") { inclusive = true }
-                            }
-                        },
-                        onFailure = { error ->
-                            Log.e("Firebase", "Error al guardar barbería favorita: ${error.message}")
-                        }
-                    )
-                }
-            }
+            navController = navController
         )
     }
 }

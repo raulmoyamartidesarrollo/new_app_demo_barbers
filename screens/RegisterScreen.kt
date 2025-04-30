@@ -12,7 +12,6 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -26,9 +25,9 @@ import androidx.compose.ui.text.input.*
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import com.github.jetbrains.rssreader.androidApp.R
 import com.github.jetbrains.rssreader.androidApp.FirebaseService
+import com.github.jetbrains.rssreader.androidApp.R
+import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun RegisterScreen(navController: NavHostController) {
@@ -222,11 +221,11 @@ fun RegisterScreen(navController: NavHostController) {
                                     }
                                 )
                             } else {
-                                FirebaseService.createUserData(
+                                // CLIENTE: guardar en colección "clientes"
+                                FirebaseService.createClienteData(
                                     uid = uid,
                                     email = email,
                                     telefono = phone,
-                                    rol = "cliente",
                                     onSuccess = {
                                         isLoading = false
                                         alertMessage = "Registro completado con éxito."
@@ -235,7 +234,7 @@ fun RegisterScreen(navController: NavHostController) {
                                     },
                                     onFailure = {
                                         isLoading = false
-                                        alertMessage = "Error al guardar usuario: ${it.message}"
+                                        alertMessage = "Error al guardar cliente: ${it.message}"
                                         isSuccess = false
                                         showAlert = true
                                     }

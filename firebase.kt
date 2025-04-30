@@ -568,19 +568,7 @@ object FirebaseService {
             .addOnSuccessListener { onSuccess() }
             .addOnFailureListener { onFailure(it) }
     }
-    fun guardarBarberiaFavoritaCliente(
-        clienteId: String,
-        idNegocio: String,
-        onSuccess: () -> Unit,
-        onFailure: (Exception) -> Unit
-    ) {
-        FirebaseFirestore.getInstance()
-            .collection("clientes")
-            .document(clienteId)
-            .update("idnegocio", idNegocio)
-            .addOnSuccessListener { onSuccess() }
-            .addOnFailureListener(onFailure)
-    }
+
 
     fun getTodasLasBarberias(
         onSuccess: (List<Barberia>) -> Unit,
@@ -618,31 +606,79 @@ object FirebaseService {
         val calendario = java.util.Calendar.getInstance()
         return dias[calendario.get(java.util.Calendar.DAY_OF_WEEK) - 1]
     }
+
+    fun guardarBarberiaFavoritaCliente(
+        clienteId: String,
+        idNegocio: String,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        Log.d("FIREBASE_DEBUG", "Intentando guardar barbería favorita: $idNegocio para cliente: $clienteId")
+        FirebaseFirestore.getInstance()
+            .collection("clientes")
+            .document(clienteId)
+            .update("idnegocio", idNegocio)
+            .addOnSuccessListener {
+                Log.d("FIREBASE_DEBUG", "¡Barbería favorita guardada correctamente!")
+                onSuccess()
+            }
+            .addOnFailureListener { e ->
+                Log.e("FIREBASE_DEBUG", "Error al guardar barbería favorita: ${e.message}")
+                onFailure(e)
+            }
+    }
+
+    fun quitarBarberiaFavoritaCliente(
+        clienteId: String,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        FirebaseFirestore.getInstance()
+            .collection("clientes")
+            .document(clienteId)
+            .update("idnegocio", null)
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener(onFailure)
+    }
+
     fun obtenerBarberiaFavorita(
         clienteId: String,
         onResult: (String?) -> Unit
     ) {
         val db = Firebase.firestore
-        db.collection("usuarios").document(clienteId)
+        db.collection("clientes") // <-- CAMBIAR AQUÍ
+            .document(clienteId)
             .get()
             .addOnSuccessListener { document ->
-                val favoritoId = document.getString("barberiaFavoritaId")
+                val favoritoId = document.getString("idnegocio") // <-- este campo sí se actualiza
                 onResult(favoritoId)
             }
             .addOnFailureListener {
                 onResult(null)
             }
     }
-    fun quitarBarberiaFavoritaCliente(
-        clienteId: String,
+    fun createClienteData(
+        uid: String,
+        email: String,
+        telefono: String,
         onSuccess: () -> Unit,
         onFailure: (Exception) -> Unit
     ) {
-        Firebase.firestore.collection("usuarios").document(clienteId)
-            .update("barberiaFavoritaId", null)
+        val clienteData = hashMapOf(
+            "email" to email,
+            "telefono" to telefono,
+            "rol" to "cliente",
+            "fotoPerfil" to "",
+            "nombre" to "",
+            "apellidos" to "",
+            "idnegocio" to null
+        )
+
+        FirebaseFirestore.getInstance()
+            .collection("clientes")
+            .document(uid)
+            .set(clienteData)
             .addOnSuccessListener { onSuccess() }
-            .addOnFailureListener { onFailure(it) }
+            .addOnFailureListener(onFailure)
     }
-
-
 }
