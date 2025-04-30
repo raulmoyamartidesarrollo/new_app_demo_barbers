@@ -168,6 +168,8 @@ fun SeleccionBarberiaScreen(
                                                     idNegocio = barberia.id,
                                                     onSuccess = {
                                                         favoritoId = barberia.id
+                                                        barberiaSeleccionada = barberia
+                                                        mostrarConfirmacion = true
                                                     },
                                                     onFailure = {}
                                                 )
