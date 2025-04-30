@@ -3,7 +3,6 @@ package com.github.jetbrains.rssreader.androidApp.screens
 import android.Manifest
 import android.os.Build
 import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
@@ -21,11 +20,9 @@ import androidx.compose.ui.unit.*
 import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
 import com.github.jetbrains.rssreader.androidApp.R
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import com.google.accompanist.permissions.*
 import com.google.firebase.auth.FirebaseAuth
 import com.github.jetbrains.rssreader.androidApp.components.ChatBotCliente
-import com.google.accompanist.permissions.isGranted
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -48,6 +45,10 @@ fun HomeClienteScreen(navController: NavHostController) {
         }
     }
     val multiplePermissionsState = rememberMultiplePermissionsState(permissions)
+
+    LaunchedEffect(Unit) {
+        multiplePermissionsState.launchMultiplePermissionRequest()
+    }
 
     ScaffoldCliente(navController = navController) { innerPadding ->
         Box(
@@ -178,7 +179,10 @@ fun HomeClienteScreen(navController: NavHostController) {
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                if (multiplePermissionsState.permissions.any { !it.status.isGranted }) {
+                val permisosConcedidos = remember(multiplePermissionsState.permissions) {
+                    multiplePermissionsState.permissions.all { it.status.isGranted }
+                }
+                if (!permisosConcedidos) {
                     Text(
                         "Recuerda aceptar permisos para recibir notificaciones sobre tus citas o ver tu ubicación.",
                         color = Color.Red,
@@ -187,7 +191,6 @@ fun HomeClienteScreen(navController: NavHostController) {
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
-
 
                 Button(
                     onClick = {
@@ -206,7 +209,6 @@ fun HomeClienteScreen(navController: NavHostController) {
 
             ChatBotCliente()
 
-            // 🔒 Confirmación de logout
             if (showLogoutDialog) {
                 AlertDialog(
                     onDismissRequest = { showLogoutDialog = false },
