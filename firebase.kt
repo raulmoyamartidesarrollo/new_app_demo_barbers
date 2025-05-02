@@ -7,8 +7,14 @@ import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.firestore
 import com.google.firebase.storage.FirebaseStorage
+import java.time.LocalDate
+import kotlinx.coroutines.tasks.await
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class HorarioDia(
     val aperturaManana: String = "",
@@ -110,7 +116,7 @@ object FirebaseService {
 
     fun getCitasPorPeluquero(negocioId: String, peluqueroId: String, onResult: (List<Cita>) -> Unit) {
         firestore.collection("negocios").document(negocioId)
-            .collection("citas")
+            .collection("reservas")
             .whereEqualTo("peluqueroId", peluqueroId).get()
             .addOnSuccessListener { result ->
                 val citas = result.map {
@@ -681,4 +687,61 @@ object FirebaseService {
             .addOnSuccessListener { onSuccess() }
             .addOnFailureListener(onFailure)
     }
+    suspend fun getUserName(): String? {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return null
+        val doc = FirebaseFirestore.getInstance().collection("usuarios").document(userId).get().await()
+        return doc.getString("nombre")
+    }
+
+
+    fun getUltimaCitaCliente(onResult: (Cita?) -> Unit) {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return onResult(null)
+
+        val db = Firebase.firestore
+
+        db.collection("clientes").document(uid).get()
+            .addOnSuccessListener { clienteDoc ->
+                val negocioId = clienteDoc.getString("idnegocio")
+                if (negocioId.isNullOrEmpty()) return@addOnSuccessListener onResult(null)
+
+                db.collection("negocios").document(negocioId)
+                    .collection("reservas")
+                    .whereEqualTo("idCliente", uid)
+                    .whereEqualTo("estado", "pendiente")
+                    .get()
+                    .addOnSuccessListener { result ->
+                        val dateFormat = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault())
+                        val hoy = java.util.Date()
+
+                        val citas = result.mapNotNull { doc ->
+                            val fechaStr = doc.getString("fecha") ?: return@mapNotNull null
+                            val hora = doc.getString("hora") ?: return@mapNotNull null
+                            val fechaDate = try { dateFormat.parse(fechaStr) } catch (_: Exception) { null } ?: return@mapNotNull null
+
+                            Cita(
+                                id = doc.id,
+                                idCliente = doc.getString("idCliente") ?: "",
+                                idServicio = doc.getString("idServicio") ?: "",
+                                nombreCliente = "",
+                                idPeluquero = doc.getString("idPeluquero") ?: "",
+                                servicio = "", // opcional: mapear nombre real si lo necesitas
+                                fecha = fechaStr,
+                                hora = hora,
+                                estado = doc.getString("estado") ?: ""
+                            ) to fechaDate
+                        }
+
+                        // Ordenamos por fecha más próxima a hoy
+                        val citaMasProxima = citas
+                            .filter { it.second.after(hoy) || dateFormat.format(it.second) == dateFormat.format(hoy) }
+                            .minByOrNull { it.second }
+                            ?.first
+
+                        onResult(citaMasProxima)
+                    }
+                    .addOnFailureListener { onResult(null) }
+            }
+            .addOnFailureListener { onResult(null) }
+    }
+
 }
