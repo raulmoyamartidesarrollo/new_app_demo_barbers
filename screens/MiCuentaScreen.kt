@@ -29,14 +29,14 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.github.jetbrains.rssreader.androidApp.R
 import com.google.accompanist.permissions.*
+import com.github.jetbrains.rssreader.androidApp.components.ChatBotCliente
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import com.github.jetbrains.rssreader.androidApp.components.ChatBotCliente
+import androidx.compose.ui.text.style.TextAlign
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-
 fun MiCuentaScreen(navController: NavHostController) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
@@ -60,12 +60,11 @@ fun MiCuentaScreen(navController: NavHostController) {
     val acento = Color(0xFFFF6680)
     val verde = Color(0xFF00FF41)
     val texto = Color.White
-    val bordeInputs = Color.Black
 
     val inputColors = TextFieldDefaults.outlinedTextFieldColors(
         backgroundColor = Color(0xFFDCF1FF),
         textColor = Color.Black,
-        placeholderColor = Color.DarkGray,
+        placeholderColor = Color.Black,
         cursorColor = Color.Black,
         focusedBorderColor = Color.Transparent,
         unfocusedBorderColor = Color.Transparent
@@ -89,42 +88,60 @@ fun MiCuentaScreen(navController: NavHostController) {
                             focusManager.clearFocus()
                             keyboardController?.hide()
                         })
-                    }
+                    },
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Mi Cuenta", fontSize = 24.sp, color = texto, fontWeight = FontWeight.Bold)
+                Text(
+                    "Mi Cuenta",
+                    fontSize = 24.sp,
+                    color = texto,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Box(
                     modifier = Modifier
-                        .size(120.dp)
-                        .clip(CircleShape)
-                        .background(Color.DarkGray),
-                    contentAlignment = Alignment.Center
+                        .size(140.dp)
+                        .align(Alignment.CenterHorizontally) // Centrado horizontal
+                        .padding(bottom = 8.dp) // Espacio inferior
                 ) {
-                    if (profileBitmap != null) {
-                        Image(
-                            bitmap = profileBitmap!!.asImageBitmap(),
-                            contentDescription = "Foto de perfil",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        Image(
-                            painter = painterResource(id = R.drawable.logo_old),
-                            contentDescription = "Foto de perfil por defecto",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-
-                    // Icono de cámara
+                    // Imagen de perfil dentro de un círculo
                     Box(
                         modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(4.dp)
+                            .size(140.dp)
+                            .clip(CircleShape)
+                            .background(Color.DarkGray)
+                    ) {
+                        if (profileBitmap != null) {
+                            Image(
+                                bitmap = profileBitmap!!.asImageBitmap(),
+                                contentDescription = "Foto de perfil",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Image(
+                                painter = painterResource(id = R.drawable.logo_old),
+                                contentDescription = "Foto de perfil por defecto",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+
+                    // Botón de cámara fuera del círculo y visible
+                    Box(
+                        modifier = Modifier
                             .size(40.dp)
+                            .align(Alignment.BottomEnd) // se posiciona fuera del círculo
+                            .offset(x = 4.dp, y = 4.dp)
+                            .zIndex(2f)
                             .clip(CircleShape)
                             .background(Color.Black.copy(alpha = 0.8f))
+                            .border(2.dp, Color.White, CircleShape)
                             .clickable {
                                 if (!cameraPermissionState.status.isGranted) {
                                     showPermissionExplanation = true
@@ -143,66 +160,76 @@ fun MiCuentaScreen(navController: NavHostController) {
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("Nombre y Apellidos", fontSize = 18.sp, color = texto)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Spacer(modifier = Modifier.height(24.dp))
+                Text("Nombre y Apellidos", fontSize = 18.sp, color = texto, modifier = Modifier.fillMaxWidth())
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                     OutlinedTextField(
                         value = nombre,
                         onValueChange = { nombre = it },
-                        placeholder = { Text("Nombre", color = Color.LightGray) },
+                        placeholder = { Text("Nombre") },
                         modifier = Modifier.weight(1f),
                         colors = inputColors
                     )
                     OutlinedTextField(
                         value = apellidos,
                         onValueChange = { apellidos = it },
-                        placeholder = { Text("Apellidos", color = Color.LightGray) },
+                        placeholder = { Text("Apellidos") },
                         modifier = Modifier.weight(1f),
                         colors = inputColors
                     )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Teléfono", fontSize = 18.sp, color = texto)
+                Text("Teléfono", fontSize = 18.sp, color = texto, modifier = Modifier.fillMaxWidth())
+
                 OutlinedTextField(
                     value = telefono,
                     onValueChange = { telefono = it },
-                    placeholder = { Text("Teléfono", color = Color.LightGray) },
+                    placeholder = { Text("Teléfono") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                     modifier = Modifier.fillMaxWidth(),
                     colors = inputColors
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
-                Text("Cambiar contraseña", fontSize = 18.sp, color = texto)
+                Text("Cambiar contraseña", fontSize = 18.sp, color = texto, modifier = Modifier.fillMaxWidth())
 
                 OutlinedTextField(
                     value = passwordActual,
                     onValueChange = { passwordActual = it },
-                    placeholder = { Text("Contraseña actual", color = Color.LightGray) },
+                    placeholder = { Text("Contraseña actual") },
                     modifier = Modifier.fillMaxWidth(),
                     colors = inputColors
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                     OutlinedTextField(
                         value = passwordNueva,
                         onValueChange = { passwordNueva = it },
-                        placeholder = { Text("Nueva", color = Color.LightGray) },
+                        placeholder = { Text("Nueva") },
                         modifier = Modifier.weight(1f),
                         colors = inputColors
                     )
                     OutlinedTextField(
                         value = passwordRepetida,
                         onValueChange = { passwordRepetida = it },
-                        placeholder = { Text("Repetir", color = Color.LightGray) },
+                        placeholder = { Text("Repetir") },
                         modifier = Modifier.weight(1f),
                         colors = inputColors
                     )
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
+
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Button(
                         onClick = { /* Guardar */ },
