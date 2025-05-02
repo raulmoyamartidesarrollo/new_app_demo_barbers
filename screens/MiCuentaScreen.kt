@@ -48,6 +48,8 @@ fun MiCuentaScreen(navController: NavHostController) {
     var passwordRepetida by remember { mutableStateOf("") }
     var profileBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
+    val fondo = Color(0xFF1C2D3C)
+
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) {
         if (it != null) profileBitmap = it
@@ -65,11 +67,12 @@ fun MiCuentaScreen(navController: NavHostController) {
 
     ScaffoldCliente(navController = navController) { paddingValues ->
         // Fondo
-        Image(
-            painter = painterResource(id = R.drawable.fondo_login),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(fondo) // 👈 Fondo con color sólido
+                .padding(paddingValues)
+                .padding(WindowInsets.systemBars.asPaddingValues())
         )
 
         Box(

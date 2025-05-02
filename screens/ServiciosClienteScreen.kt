@@ -23,30 +23,26 @@ import androidx.navigation.NavHostController
 import com.github.jetbrains.rssreader.androidApp.R
 import com.github.jetbrains.rssreader.androidApp.components.ChatBotCliente
 
+
 @Composable
 fun ServiciosClienteScreen(navController: NavHostController) {
+    val fondo = Color(0xFF1C2D3C)
+
     ScaffoldCliente(navController = navController) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(fondo) // ✅ Fondo sólido en lugar de imagen
                 .padding(paddingValues)
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.fondo_login),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding() // Espacio automático según la barra superior del sistema
+                    .statusBarsPadding()
                     .padding(24.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.Top
             ) {
-                // Título visible sobre cualquier fondo
                 Text(
                     text = "Nuestros Servicios",
                     fontSize = 24.sp,
@@ -67,6 +63,7 @@ fun ServiciosClienteScreen(navController: NavHostController) {
                 ServicioItem(nombre = "Arreglo de Barba", duracion = "20 min", precio = "8€")
                 ServicioItem(nombre = "Coloración", duracion = "60 min", precio = "20€")
             }
+
             ChatBotCliente()
         }
     }
