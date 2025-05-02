@@ -1,338 +1,398 @@
 package com.github.jetbrains.rssreader.androidApp.screens
 
-import androidx.compose.foundation.*
-import androidx.compose.foundation.layout.*
-import androidx.compose.material.*
-import androidx.compose.material.TextFieldDefaults
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.runtime.*
-import androidx.compose.ui.*
+import android.util.Log
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.AlertDialog
+import androidx.compose.material.Card
+import androidx.compose.material.DropdownMenu
+import androidx.compose.material.DropdownMenuItem
+import androidx.compose.material.Icon
+import androidx.compose.material.OutlinedTextField
+import androidx.compose.material.Text
+import androidx.compose.material.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.*
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import com.github.jetbrains.rssreader.androidApp.R
-import com.github.jetbrains.rssreader.androidApp.components.CalendarioDisponible
-import com.google.accompanist.flowlayout.FlowRow
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import java.time.DayOfWeek
+import com.github.jetbrains.rssreader.androidApp.Cita
+import com.github.jetbrains.rssreader.androidApp.FirebaseService
+import com.github.jetbrains.rssreader.androidApp.HorarioDia
+import com.github.jetbrains.rssreader.androidApp.Peluquero
+import com.github.jetbrains.rssreader.androidApp.components.CalendarioSemanalHorizontal
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
+
+@Composable
+fun DropdownMenuBoxSimple(
+    opciones: List<String>,
+    seleccionado: String,
+    onSeleccionar: (String) -> Unit,
+    label: String
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        OutlinedTextField(
+            value = seleccionado,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = true }
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            opciones.forEach { opcion ->
+                DropdownMenuItem(onClick = {
+                    onSeleccionar(opcion)
+                    expanded = false
+                }) {
+                    Text(opcion)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DropdownMenuBoxHorasDisponiblesSimple(
+    horasDisponibles: List<String>,
+    horaSeleccionada: String,
+    onSeleccionar: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        OutlinedTextField(
+            value = horaSeleccionada,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Hora disponible") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = true }
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            horasDisponibles.forEach { hora ->
+                DropdownMenuItem(onClick = {
+                    onSeleccionar(hora)
+                    expanded = false
+                }) {
+                    Text(hora)
+                }
+            }
+        }
+    }
+}
+
+fun calcularHorasDisponiblesSimple(
+    horarioDia: HorarioDia?,
+    citas: List<Cita>,
+    fechaSeleccionada: LocalDate
+): List<String> {
+    if (horarioDia == null) return emptyList()
+    val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    val tramos = mutableListOf<String>()
+
+    listOf(
+        horarioDia.aperturaManana to horarioDia.cierreManana,
+        horarioDia.aperturaTarde to horarioDia.cierreTarde
+    ).forEach { (inicio, fin) ->
+        if (!inicio.isNullOrEmpty() && !fin.isNullOrEmpty()) {
+            var horaActual = LocalTime.parse(inicio)
+            val horaFin = LocalTime.parse(fin)
+            while (!horaActual.isAfter(horaFin)) {
+                tramos.add(horaActual.toString().substring(0, 5))
+                horaActual = horaActual.plusMinutes(30)
+            }
+        }
+    }
+
+    val fechaStr = fechaSeleccionada.format(formatter)
+    val horasOcupadas = citas.filter { it.fecha == fechaStr }.map { it.hora.trim() }
+    return tramos.filterNot { horasOcupadas.contains(it) }
+}
+
+@Composable
+fun CrearReservaDialogCliente(
+    showDialog: MutableState<Boolean>,
+    peluqueros: List<Peluquero>,
+    horario: Map<String, HorarioDia>,
+    servicios: List<Map<String, Any>>,
+    negocioId: String,
+    navController: NavHostController,
+    fechaPreseleccionada: LocalDate,
+    horaPreseleccionada: String
+) {
+    var peluqueroSeleccionado by remember { mutableStateOf<Peluquero?>(null) }
+    var servicioSeleccionadoId by remember { mutableStateOf("") }
+    var horaSeleccionada by remember { mutableStateOf(horaPreseleccionada) }
+    var fechaSeleccionada by remember { mutableStateOf(fechaPreseleccionada) }
+    var clienteId by remember { mutableStateOf("") }
+    val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    val showCamposObligatorios = remember { mutableStateOf(false) }
+    val showReservaConfirmada = remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        FirebaseService.getCurrentUser()?.uid?.let {
+            clienteId = it
+        }
+    }
+
+    if (showDialog.value) {
+        AlertDialog(
+            onDismissRequest = {
+                showDialog.value = false
+            },
+            title = { Text("Pedir cita") },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    DropdownMenuBoxSimple(
+                        opciones = listOf("Selecciona un peluquero") + peluqueros.map { "${it.nombre} ${it.apellidos}" },
+                        seleccionado = peluqueroSeleccionado?.let { "${it.nombre} ${it.apellidos}" } ?: "Selecciona un peluquero",
+                        onSeleccionar = { nombre ->
+                            peluqueroSeleccionado = peluqueros.find { "${it.nombre} ${it.apellidos}" == nombre }
+                        },
+                        label = "Peluquero"
+                    )
+                    Spacer(Modifier.height(8.dp))
+
+                    val opcionesServicios = servicios.map { it["id"].toString() to it["nombre"].toString() }
+                    val nombreServicioSeleccionado = opcionesServicios.find { it.first == servicioSeleccionadoId }?.second ?: ""
+
+                    DropdownMenuBoxSimple(
+                        opciones = opcionesServicios.map { it.second },
+                        seleccionado = nombreServicioSeleccionado,
+                        onSeleccionar = { nombre ->
+                            servicioSeleccionadoId = opcionesServicios.find { it.second == nombre }?.first ?: ""
+                        },
+                        label = "Selecciona servicio"
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    val nombreDia = fechaSeleccionada.dayOfWeek.getDisplayName(TextStyle.FULL, Locale("es"))
+                        .replaceFirstChar { it.uppercaseChar() }
+
+                    val horasDisponibles = calcularHorasDisponiblesSimple(
+                        horario[nombreDia],
+                        emptyList(),
+                        fechaSeleccionada
+                    )
+
+                    DropdownMenuBoxHorasDisponiblesSimple(
+                        horasDisponibles = horasDisponibles,
+                        horaSeleccionada = horaSeleccionada
+                    ) {
+                        horaSeleccionada = it
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (clienteId.isBlank() || servicioSeleccionadoId.isBlank() || horaSeleccionada.isBlank() || peluqueroSeleccionado == null || negocioId.isBlank()) {
+                        showCamposObligatorios.value = true
+                        return@TextButton
+                    }
+                    FirebaseService.crearReserva(
+                        negocioId = negocioId,
+                        idPeluquero = peluqueroSeleccionado!!.id,
+                        idServicio = servicioSeleccionadoId,
+                        idCliente = clienteId,
+                        fecha = fechaSeleccionada.format(formatter),
+                        hora = horaSeleccionada,
+                        onSuccess = {
+                            showDialog.value = false
+                            showReservaConfirmada.value = true
+                        },
+                        onFailure = { Log.e("Reserva", "Error al guardar: ${it.message}") }
+                    )
+                }) {
+                    Text("Confirmar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDialog.value = false
+                }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (showCamposObligatorios.value) {
+        AlertDialog(
+            onDismissRequest = { showCamposObligatorios.value = false },
+            title = { Text("Campos obligatorios") },
+            text = { Text("Completa todos los campos antes de guardar la cita.") },
+            confirmButton = {
+                TextButton(onClick = { showCamposObligatorios.value = false }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
+    if (showReservaConfirmada.value) {
+        AlertDialog(
+            onDismissRequest = { showReservaConfirmada.value = false },
+            title = { Text("Cita guardada") },
+            text = { Text("Tu cita ha sido guardada correctamente.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showReservaConfirmada.value = false
+                    navController.navigate("home_cliente")
+                }) {
+                    Text("Aceptar")
+                }
+            }
+        )
+    }
+}
 
 @Composable
 fun PedirCitaScreen(navController: NavHostController) {
-    val servicios = listOf("Corte", "Barba", "Corte + Barba", "Coloración")
-    val peluqueros = listOf("Juan", "Laura", "Carlos")
+    val negocioId = remember { mutableStateOf("") }
+    val peluqueros = remember { mutableStateOf<List<Peluquero>>(emptyList()) }
+    val peluqueroSeleccionado = remember { mutableStateOf<Peluquero?>(null) }
+    val horario = remember { mutableStateOf<Map<String, HorarioDia>>(emptyMap()) }
+    val servicios = remember { mutableStateOf<List<Map<String, Any>>>(emptyList()) }
+    val showCrearDialog = remember { mutableStateOf(false) }
+    val fechaSeleccionada = remember { mutableStateOf(LocalDate.now()) }
+    val horaSeleccionada = remember { mutableStateOf("") }
 
-    var servicioSeleccionado by remember { mutableStateOf("") }
-    var peluqueroSeleccionado by remember { mutableStateOf("") }
-    var fechaSeleccionada by remember { mutableStateOf("") }
-    var horaSeleccionada by remember { mutableStateOf("") }
-    var fechaLocalSeleccionada by remember { mutableStateOf<LocalDate?>(null) }
+    LaunchedEffect(Unit) {
+        FirebaseService.getNegocioIdActual(
+            onSuccess = {
+                negocioId.value = it
+            },
+            onFailure = {
+                Log.e("Firebase", "Error al obtener negocioId: ${it.message}")
+            }
+        )
+    }
 
-    var showCalendar by remember { mutableStateOf(false) }
-    val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
-
-    var selectedTabIndex by remember { mutableStateOf(0) }
-
-    var showConfirmDialog by remember { mutableStateOf(false) }
-    var showLoading by remember { mutableStateOf(false) }
-    var showSuccessDialog by remember { mutableStateOf(false) }
-
-    val inputColors = TextFieldDefaults.outlinedTextFieldColors(
-        focusedBorderColor = Color(0xFF00FF41),
-        unfocusedBorderColor = Color(0xFF00FF41),
-        textColor = Color.White,
-        placeholderColor = Color.LightGray,
-        cursorColor = Color.White
-    )
-
-    ScaffoldCliente(navController = navController) { _ ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(WindowInsets.systemBars.asPaddingValues()) // ✅ SafeArea
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.fondo_login),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+    LaunchedEffect(negocioId.value) {
+        if (negocioId.value.isNotBlank()) {
+            FirebaseService.getPeluquerosDelNegocio(negocioId.value) {
+                peluqueros.value = it
+                if (it.size == 1) peluqueroSeleccionado.value = it.firstOrNull()
+            }
+            FirebaseService.getHorarioNegocio(
+                onSuccess = { horario.value = it },
+                onFailure = { Log.e("Firebase", "Error horario: ${it.message}") }
             )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.Top
-            ) {
-                Text("Pedir Cita", fontSize = 24.sp, color = Color.White, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text("Selecciona un servicio:", color = Color.White)
-                FlowRow(
-                    mainAxisSpacing = 8.dp,
-                    crossAxisSpacing = 8.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    servicios.forEach { servicio ->
-                        AssistChip(
-                            onClick = { servicioSeleccionado = servicio },
-                            label = {
-                                Text(servicio, color = if (servicioSeleccionado == servicio) Color.Black else Color.White)
-                            },
-                            colors = AssistChipDefaults.assistChipColors(
-                                containerColor = if (servicioSeleccionado == servicio) Color(0xFF00FF41) else Color.Transparent
-                            )
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text("Selecciona un peluquero:", color = Color.White)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    peluqueros.forEach { peluquero ->
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .width(100.dp)
-                                .clickable { peluqueroSeleccionado = peluquero }
-                        ) {
-                            Card(
-                                backgroundColor = if (peluqueroSeleccionado == peluquero) Color(0xFF00FF41) else Color.LightGray,
-                                shape = MaterialTheme.shapes.medium,
-                                elevation = 4.dp
-                            ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.foto_peluquero),
-                                    contentDescription = "Foto de $peluquero",
-                                    modifier = Modifier
-                                        .size(80.dp)
-                                        .padding(4.dp),
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(peluquero, color = Color.White, fontSize = 14.sp)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text("Selecciona una fecha:", color = Color.White)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showCalendar = true }
-                ) {
-                    OutlinedTextField(
-                        value = fechaSeleccionada,
-                        onValueChange = {},
-                        placeholder = { Text("Haz clic para elegir fecha", color = Color.LightGray) },
-                        readOnly = true,
-                        enabled = false,
-                        colors = inputColors,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                if (fechaLocalSeleccionada != null) {
-                    Text("Selecciona una hora:", color = Color.White)
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    val tabLabels = listOf("Mañana", "Tarde")
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        tabLabels.forEachIndexed { index, label ->
-                            val isSelected = selectedTabIndex == index
-                            Column(
-                                modifier = Modifier
-                                    .clickable { selectedTabIndex = index }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                                    .graphicsLayer {
-                                        alpha = if (isSelected) 1f else 0.5f
-                                    },
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = label,
-                                    color = Color.White,
-                                    fontSize = 16.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                if (isSelected) {
-                                    Box(
-                                        modifier = Modifier
-                                            .height(3.dp)
-                                            .width(40.dp)
-                                            .background(Color(0xFF00FF41))
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    val dayOfWeek = fechaLocalSeleccionada!!.dayOfWeek
-                    val horarios = when {
-                        dayOfWeek == DayOfWeek.SATURDAY -> listOf(
-                            listOf("10:00", "10:20", "10:40", "11:00", "11:20", "11:40", "12:00", "12:20", "12:40", "13:00", "13:20", "13:40"),
-                            emptyList()
-                        )
-                        else -> listOf(
-                            listOf("10:00", "10:20", "10:40", "11:00", "11:20", "11:40", "12:00", "12:20", "12:40", "13:00", "13:20", "13:40"),
-                            listOf("16:00", "16:20", "16:40", "17:00", "17:20", "17:40", "18:00", "18:20", "18:40", "19:00", "19:20", "19:40")
-                        )
-                    }
-
-                    FlowRow(
-                        mainAxisSpacing = 8.dp,
-                        crossAxisSpacing = 8.dp,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        horarios[selectedTabIndex].forEach { hora ->
-                            AssistChip(
-                                onClick = { horaSeleccionada = hora },
-                                label = {
-                                    Text(hora, color = if (horaSeleccionada == hora) Color.Black else Color.White)
-                                },
-                                colors = AssistChipDefaults.assistChipColors(
-                                    containerColor = if (horaSeleccionada == hora) Color(0xFF00FF41) else Color.Transparent
-                                )
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                Button(
-                    onClick = {
-                        if (
-                            servicioSeleccionado.isNotEmpty() &&
-                            peluqueroSeleccionado.isNotEmpty() &&
-                            fechaSeleccionada.isNotEmpty() &&
-                            horaSeleccionada.isNotEmpty()
-                        ) {
-                            showConfirmDialog = true
-                        } else {
-                            coroutineScope.launch {
-                                snackbarHostState.showSnackbar("Por favor, completa todos los campos correctamente.")
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = Color(0xFF00FF41),
-                        contentColor = Color.Black
-                    )
-                ) {
-                    Text("Confirmar cita")
-                }
-
-                Spacer(modifier = Modifier.height(96.dp))
-            }
-
-            if (showCalendar) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.6f))
-                        .clickable { showCalendar = false }
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .background(Color(0xFF1E1E1E))
-                            .padding(16.dp)
-                    ) {
-                        CalendarioDisponible { fecha ->
-                            fechaSeleccionada = fecha.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                            fechaLocalSeleccionada = fecha
-                            horaSeleccionada = ""
-                            selectedTabIndex = 0
-                            showCalendar = false
-                        }
-                    }
-                }
-            }
-
-            if (showConfirmDialog) {
-                AlertDialog(
-                    onDismissRequest = { showConfirmDialog = false },
-                    title = { Text("Confirmar cita") },
-                    text = {
-                        Text("¿Confirmas tu cita para $servicioSeleccionado con $peluqueroSeleccionado el día $fechaSeleccionada a las $horaSeleccionada?")
-                    },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            showConfirmDialog = false
-                            showLoading = true
-                            coroutineScope.launch {
-                                delay(2000)
-                                showLoading = false
-                                showSuccessDialog = true
-                            }
-                        }) {
-                            Text("Sí")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showConfirmDialog = false }) {
-                            Text("No")
-                        }
-                    }
-                )
-            }
-
-            if (showLoading) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color(0xFF00FF41))
-                }
-            }
-
-            if (showSuccessDialog) {
-                AlertDialog(
-                    onDismissRequest = { showSuccessDialog = false },
-                    title = { Text("Cita guardada") },
-                    text = { Text("Tu cita ha sido guardada correctamente.") },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            showSuccessDialog = false
-                            navController.navigate("home_cliente")
-                        }) {
-                            Text("Aceptar")
-                        }
-                    }
-                )
-            }
-
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 96.dp)
+            FirebaseService.getServiciosNegocio(
+                negocioId.value,
+                onSuccess = { servicios.value = it },
+                onFailure = { Log.e("Firebase", "Error servicios: ${it.message}") }
             )
         }
+    }
+
+    ScaffoldCliente(navController = navController) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "Selecciona peluquero",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+
+            LazyRow(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                items(peluqueros.value) { peluquero ->
+                    Card(
+                        backgroundColor = if (peluquero.id == peluqueroSeleccionado.value?.id) Color(0xFF4CAF50) else Color.White,
+                        elevation = 6.dp,
+                        modifier = Modifier
+                            .clickable { peluqueroSeleccionado.value = peluquero }
+                            .width(200.dp)
+                            .padding(end = 8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                Icons.Default.AccountCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp),
+                                tint = if (peluquero.id == peluqueroSeleccionado.value?.id) Color.White else Color.Black
+                            )
+                            Text(
+                                peluquero.nombre,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (peluquero.id == peluqueroSeleccionado.value?.id) Color.White else Color.Black
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (peluqueroSeleccionado.value != null) {
+                Text("Calendario semanal", color = Color.White, fontWeight = FontWeight.Bold)
+                CalendarioSemanalHorizontal(
+                    citas = emptyList(), // El cliente no debe ver todas las citas, solo seleccionar hora libre
+                    horario = horario.value,
+                    onCeldaLibreClick = { fecha, hora ->
+                        fechaSeleccionada.value = fecha
+                        horaSeleccionada.value = hora
+                        showCrearDialog.value = true
+                    },
+                    onEditarClick = {},
+                    onEliminarClick = {}
+                )
+            }
+        }
+    }
+
+    // Mostrar el diálogo para crear la cita como cliente
+    if (showCrearDialog.value) {
+        CrearReservaDialogCliente(
+            showDialog = showCrearDialog,
+            peluqueros = peluqueros.value,
+            horario = horario.value,
+            servicios = servicios.value,
+            negocioId = negocioId.value,
+            navController = navController,
+            fechaPreseleccionada = fechaSeleccionada.value,
+            horaPreseleccionada = horaSeleccionada.value
+        )
     }
 }
