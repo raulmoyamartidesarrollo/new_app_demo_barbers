@@ -64,7 +64,9 @@ fun HomeClienteScreen(navController: NavHostController) {
                     "fecha" to it.fecha,
                     "hora" to it.hora,
                     "servicio" to it.servicio,
-                    "estado" to it.estado
+                    "estado" to it.estado,
+                    "peluquero" to it.nombreCliente,
+                    "precio" to "${it.precio} €"
                 )
             }
         }
@@ -111,6 +113,8 @@ fun HomeClienteScreen(navController: NavHostController) {
                         Text("Fecha: ${ultimaCita["fecha"]}")
                         Text("Hora: ${ultimaCita["hora"]}")
                         Text("Servicio: ${ultimaCita["servicio"]}")
+                        Text("Precio: ${ultimaCita["precio"]}")
+                        Text("Peluquero: ${ultimaCita["peluquero"]}")
                         Text(
                             "Estado: ${ultimaCita["estado"]}",
                             color = if (ultimaCita["estado"] == "Pendiente") Color(0xFFD35400) else Color(0xFF27AE60)
