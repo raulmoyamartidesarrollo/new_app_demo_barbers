@@ -162,13 +162,26 @@ fun HomeClienteScreen(navController: NavHostController) {
                             fontSize = 16.sp
                         )
                         Spacer(modifier = Modifier.height(16.dp))
-                        Button(
-                            onClick = { /* editar cita */ },
-                            colors = ButtonDefaults.buttonColors(backgroundColor = acento),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Editar cita", color = Color.White)
+                        if (ultimaCita["estado"] == "pendiente") {
+                            Button(
+                                onClick = { /* editar cita */ },
+                                colors = ButtonDefaults.buttonColors(backgroundColor = acento),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Editar cita", color = Color.White)
+                            }
+                        } else {
+                            Button(
+                                onClick = {
+                                    navController.navigate("pedir_cita")
+                                },
+                                colors = ButtonDefaults.buttonColors(backgroundColor = acento),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Pedir nueva cita", color = Color.White)
+                            }
                         }
                     }
                 }
