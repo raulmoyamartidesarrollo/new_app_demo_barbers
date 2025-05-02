@@ -36,6 +36,7 @@ import com.github.jetbrains.rssreader.androidApp.components.ChatBotCliente
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
+
 fun MiCuentaScreen(navController: NavHostController) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
@@ -48,8 +49,6 @@ fun MiCuentaScreen(navController: NavHostController) {
     var passwordRepetida by remember { mutableStateOf("") }
     var profileBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
-    val fondo = Color(0xFF1C2D3C)
-
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) {
         if (it != null) profileBitmap = it
@@ -57,29 +56,28 @@ fun MiCuentaScreen(navController: NavHostController) {
 
     var showPermissionExplanation by remember { mutableStateOf(false) }
 
+    val fondo = Color(0xFF1C2D3C)
+    val acento = Color(0xFFFF6680)
+    val verde = Color(0xFF00FF41)
+    val texto = Color.White
+    val bordeInputs = Color.Black
+
     val inputColors = TextFieldDefaults.outlinedTextFieldColors(
-        focusedBorderColor = Color(0xFF00FF41),
-        unfocusedBorderColor = Color(0xFF00FF41),
-        textColor = Color.White,
-        placeholderColor = Color.LightGray,
-        cursorColor = Color.White
+        backgroundColor = Color(0xFFDCF1FF),
+        textColor = Color.Black,
+        placeholderColor = Color.DarkGray,
+        cursorColor = Color.Black,
+        focusedBorderColor = Color.Transparent,
+        unfocusedBorderColor = Color.Transparent
     )
 
     ScaffoldCliente(navController = navController) { paddingValues ->
-        // Fondo
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(fondo) // 👈 Fondo con color sólido
+                .background(fondo)
                 .padding(paddingValues)
                 .padding(WindowInsets.systemBars.asPaddingValues())
-        )
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(WindowInsets.systemBars.asPaddingValues()) // SafeArea
         ) {
             Column(
                 modifier = Modifier
@@ -93,21 +91,14 @@ fun MiCuentaScreen(navController: NavHostController) {
                         })
                     }
             ) {
-                Text("Mi Cuenta", fontSize = 24.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Mi Cuenta", fontSize = 24.sp, color = texto, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Box(
                     modifier = Modifier
                         .size(120.dp)
                         .clip(CircleShape)
-                        .background(Color.DarkGray)
-                        .clickable {
-                            if (!cameraPermissionState.status.isGranted) {
-                                showPermissionExplanation = true
-                            } else {
-                                cameraLauncher.launch()
-                            }
-                        },
+                        .background(Color.DarkGray),
                     contentAlignment = Alignment.Center
                 ) {
                     if (profileBitmap != null) {
@@ -126,20 +117,34 @@ fun MiCuentaScreen(navController: NavHostController) {
                         )
                     }
 
-                    Icon(
-                        imageVector = Icons.Default.CameraAlt,
-                        contentDescription = "Cambiar foto",
-                        tint = Color.White,
+                    // Icono de cámara
+                    Box(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .size(28.dp)
-                            .background(Color.Black.copy(alpha = 0.7f), shape = CircleShape)
-                            .padding(6.dp)
-                    )
+                            .padding(4.dp)
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.8f))
+                            .clickable {
+                                if (!cameraPermissionState.status.isGranted) {
+                                    showPermissionExplanation = true
+                                } else {
+                                    cameraLauncher.launch()
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = "Cambiar foto",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Nombre y Apellidos", fontSize = 18.sp, color = Color.White)
+                Text("Nombre y Apellidos", fontSize = 18.sp, color = texto)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     OutlinedTextField(
                         value = nombre,
@@ -158,7 +163,7 @@ fun MiCuentaScreen(navController: NavHostController) {
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Teléfono", fontSize = 18.sp, color = Color.White)
+                Text("Teléfono", fontSize = 18.sp, color = texto)
                 OutlinedTextField(
                     value = telefono,
                     onValueChange = { telefono = it },
@@ -169,7 +174,7 @@ fun MiCuentaScreen(navController: NavHostController) {
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
-                Text("Cambiar contraseña", fontSize = 18.sp, color = Color.White)
+                Text("Cambiar contraseña", fontSize = 18.sp, color = texto)
 
                 OutlinedTextField(
                     value = passwordActual,
@@ -200,8 +205,8 @@ fun MiCuentaScreen(navController: NavHostController) {
                 Spacer(modifier = Modifier.height(24.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Button(
-                        onClick = { /* Guardar en Firebase */ },
-                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF00FF41), contentColor = Color.Black),
+                        onClick = { /* Guardar */ },
+                        colors = ButtonDefaults.buttonColors(backgroundColor = verde, contentColor = Color.Black),
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Guardar cambios")
@@ -213,9 +218,10 @@ fun MiCuentaScreen(navController: NavHostController) {
                                 launchSingleTop = true
                             }
                         },
+                        colors = ButtonDefaults.buttonColors(backgroundColor = acento),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Volver a inicio")
+                        Text("Volver a inicio", color = Color.White)
                     }
                 }
             }
@@ -224,7 +230,7 @@ fun MiCuentaScreen(navController: NavHostController) {
                 AlertDialog(
                     onDismissRequest = { showPermissionExplanation = false },
                     title = { Text("Permiso necesario") },
-                    text = { Text("Para cambiar tu foto de perfil necesitamos acceder a la cámara. ¿Deseas permitirlo?") },
+                    text = { Text("Para cambiar tu foto de perfil necesitamos acceder a la cámara.") },
                     confirmButton = {
                         TextButton(
                             onClick = {
@@ -242,6 +248,7 @@ fun MiCuentaScreen(navController: NavHostController) {
                     }
                 )
             }
+
             ChatBotCliente()
         }
     }
