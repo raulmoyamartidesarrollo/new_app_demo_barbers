@@ -703,20 +703,18 @@ object FirebaseService {
             .addOnSuccessListener { doc ->
                 val negocioId = doc.getString("idnegocio") ?: return@addOnSuccessListener onResult(null)
 
-                db.collection("negocios").document(negocioId)
-                    .collection("reservas")
+                val reservasRef = db.collection("negocios").document(negocioId).collection("reservas")
+                val hoy = SimpleDateFormat("dd/MM/yyyy").parse(SimpleDateFormat("dd/MM/yyyy").format(Date()))
+
+                // Buscar primero cita pendiente
+                reservasRef
                     .whereEqualTo("idCliente", userId)
                     .whereEqualTo("estado", "pendiente")
                     .get()
                     .addOnSuccessListener { result ->
-                        val hoy = SimpleDateFormat("dd/MM/yyyy").parse(
-                            SimpleDateFormat("dd/MM/yyyy").format(Date())
-                        )
-
-                        val citaProxima = result.documents
+                        val citaPendiente = result.documents
                             .mapNotNull { doc ->
                                 val fechaStr = doc.getString("fecha") ?: return@mapNotNull null
-                                val hora = doc.getString("hora") ?: return@mapNotNull null
                                 val fechaDate = try {
                                     SimpleDateFormat("dd/MM/yyyy").parse(fechaStr)
                                 } catch (e: Exception) {
@@ -728,52 +726,83 @@ object FirebaseService {
                             .filter { it.second >= hoy }
                             .minByOrNull { it.second }
 
-                        if (citaProxima != null) {
-                            val (reservaId, _, doc) = citaProxima
-                            val idServicio = doc.getString("idServicio") ?: ""
-                            val idPeluquero = doc.getString("idPeluquero") ?: ""
-
-                            // Obtenemos nombre del servicio
-                            db.collection("negocios").document(negocioId)
-                                .collection("servicios").document(idServicio)
-                                .get()
-                                .addOnSuccessListener { servicioDoc ->
-                                    val nombreServicio = servicioDoc.getString("nombre") ?: ""
-                                    val precioServicio = servicioDoc.getDouble("precio") ?: 0.0
-
-                                    // Obtenemos nombre del peluquero
-                                    db.collection("negocios").document(negocioId)
-                                        .collection("peluqueros").document(idPeluquero)
-                                        .get()
-                                        .addOnSuccessListener { peluqueroDoc ->
-                                            val nombrePeluquero = peluqueroDoc.getString("nombre") ?: ""
-
-                                            val cita = Cita(
-                                                id = reservaId,
-                                                fecha = doc.getString("fecha") ?: "",
-                                                hora = doc.getString("hora") ?: "",
-                                                servicio = nombreServicio,
-                                                nombreCliente = nombrePeluquero,
-                                                idCliente = userId,
-                                                idServicio = idServicio,
-                                                idPeluquero = idPeluquero,
-                                                estado = doc.getString("estado") ?: "pendiente",
-                                                precio = precioServicio
-                                            )
-                                            onResult(cita)
-                                        }
-                                }
+                        if (citaPendiente != null) {
+                            procesarCitaConDetalle(citaPendiente.third, citaPendiente.first, negocioId, userId, onResult)
                         } else {
-                            onResult(null)
+                            // Si no hay cita pendiente, buscar la última finalizada antes de hoy
+                            reservasRef
+                                .whereEqualTo("idCliente", userId)
+                                .whereEqualTo("estado", "finalizada")
+                                .get()
+                                .addOnSuccessListener { finalizadas ->
+                                    val citaFinalizada = finalizadas.documents
+                                        .mapNotNull { doc ->
+                                            val fechaStr = doc.getString("fecha") ?: return@mapNotNull null
+                                            val fechaDate = try {
+                                                SimpleDateFormat("dd/MM/yyyy").parse(fechaStr)
+                                            } catch (e: Exception) {
+                                                null
+                                            } ?: return@mapNotNull null
+
+                                            Triple(doc.id, fechaDate, doc)
+                                        }
+                                        .filter { it.second <= hoy }
+                                        .maxByOrNull { it.second }
+
+                                    if (citaFinalizada != null) {
+                                        procesarCitaConDetalle(citaFinalizada.third, citaFinalizada.first, negocioId, userId, onResult)
+                                    } else {
+                                        onResult(null)
+                                    }
+                                }
+                                .addOnFailureListener { onResult(null) }
                         }
                     }
-                    .addOnFailureListener {
-                        onResult(null)
+                    .addOnFailureListener { onResult(null) }
+            }
+            .addOnFailureListener { onResult(null) }
+    }
+    private fun procesarCitaConDetalle(
+        doc: com.google.firebase.firestore.DocumentSnapshot,
+        reservaId: String,
+        negocioId: String,
+        userId: String,
+        onResult: (Cita?) -> Unit
+    ) {
+        val db = Firebase.firestore
+        val idServicio = doc.getString("idServicio") ?: ""
+        val idPeluquero = doc.getString("idPeluquero") ?: ""
+
+        db.collection("negocios").document(negocioId)
+            .collection("servicios").document(idServicio)
+            .get()
+            .addOnSuccessListener { servicioDoc ->
+                val nombreServicio = servicioDoc.getString("nombre") ?: ""
+                val precioServicio = servicioDoc.getDouble("precio") ?: 0.0
+
+                db.collection("negocios").document(negocioId)
+                    .collection("peluqueros").document(idPeluquero)
+                    .get()
+                    .addOnSuccessListener { peluqueroDoc ->
+                        val nombrePeluquero = peluqueroDoc.getString("nombre") ?: ""
+
+                        val cita = Cita(
+                            id = reservaId,
+                            fecha = doc.getString("fecha") ?: "",
+                            hora = doc.getString("hora") ?: "",
+                            servicio = nombreServicio,
+                            nombreCliente = nombrePeluquero,
+                            idCliente = userId,
+                            idServicio = idServicio,
+                            idPeluquero = idPeluquero,
+                            estado = doc.getString("estado") ?: "pendiente",
+                            precio = precioServicio
+                        )
+                        onResult(cita)
                     }
+                    .addOnFailureListener { onResult(null) }
             }
-            .addOnFailureListener {
-                onResult(null)
-            }
+            .addOnFailureListener { onResult(null) }
     }
 
 }
