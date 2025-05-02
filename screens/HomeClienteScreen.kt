@@ -88,7 +88,9 @@ fun HomeClienteScreen(navController: NavHostController) {
     val botonsecundario = Color(0xFFFF6680)
 
     LaunchedEffect(Unit) {
-        nombreUsuario = FirebaseService.getUserName() ?: "Usuario"
+        FirebaseService.getUserName()?.let {
+            nombreUsuario = FirebaseService.getUserName() ?: "Usuario"
+        }
         FirebaseService.getUltimaCitaCliente { cita: Cita? ->
             cita?.let {
                 ultimaCita = mapOf(

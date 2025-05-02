@@ -687,8 +687,20 @@ object FirebaseService {
     }
     suspend fun getUserName(): String? {
         val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return null
-        val doc = FirebaseFirestore.getInstance().collection("usuarios").document(userId).get().await()
-        return doc.getString("nombre")
+        val doc = FirebaseFirestore.getInstance().collection("clientes").document(userId).get().await()
+
+        val nombre = doc.getString("nombre")?.takeIf { it.isNotBlank() }
+        val apellidos = doc.getString("apellidos")?.takeIf { it.isNotBlank() }
+
+        return when {
+            nombre != null -> nombre
+            apellidos != null -> apellidos
+            else -> {
+                // Fallback: intenta sacar algo del email
+                val email = doc.getString("email")
+                email?.substringBefore("@")?.replaceFirstChar { it.uppercaseChar() }
+            }
+        }
     }
 
 
