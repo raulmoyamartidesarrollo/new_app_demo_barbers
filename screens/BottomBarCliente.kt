@@ -19,11 +19,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
+import androidx.navigation.compose.currentBackStackEntryAsState
 
 @Composable
 fun BottomBarCliente(navController: NavHostController, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var showDialog by remember { mutableStateOf(false) }
+
+    val bordeColor = Color(0xFFFF6680)
+    val fondoMenu = Color.White
+    val colorInactivo = Color(0xFF1C2D3C)
+    val colorActivo = bordeColor
+
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
     if (showDialog) {
         AlertDialog(
@@ -52,16 +60,15 @@ fun BottomBarCliente(navController: NavHostController, modifier: Modifier = Modi
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color.Black)
+            .background(fondoMenu)
             .padding(bottom = 16.dp)
             .zIndex(1f)
     ) {
-        // Borde superior verde
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(3.dp)
-                .background(Color(0xFF00FF41))
+                .background(bordeColor)
                 .align(Alignment.TopCenter)
         )
 
@@ -72,57 +79,76 @@ fun BottomBarCliente(navController: NavHostController, modifier: Modifier = Modi
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 🔹 HOME
-            IconWithLabel(icon = Icons.Default.Home, label = "Home") {
+            IconWithLabel(
+                icon = Icons.Default.Home,
+                label = "Home",
+                selected = currentRoute == "home_cliente",
+                colorActivo = colorActivo,
+                colorInactivo = colorInactivo
+            ) {
                 navController.navigate("home_cliente") {
                     popUpTo("home_cliente") { inclusive = true }
                     launchSingleTop = true
                 }
             }
 
-            // 🔹 SERVICIOS
-            IconWithLabel(icon = Icons.Default.List, label = "Servicios") {
-                navController.navigate("servicios_cliente") // Asegúrate de que esta ruta existe
+            IconWithLabel(
+                icon = Icons.Default.List,
+                label = "Servicios",
+                selected = currentRoute == "servicios_cliente",
+                colorActivo = colorActivo,
+                colorInactivo = colorInactivo
+            ) {
+                navController.navigate("servicios_cliente")
             }
 
-            Spacer(modifier = Modifier.width(56.dp)) // espacio para botón central
+            Spacer(modifier = Modifier.width(56.dp))
 
-            // 🔹 CUENTA
-            IconWithLabel(icon = Icons.Default.Person, label = "Cuenta") {
+            IconWithLabel(
+                icon = Icons.Default.Person,
+                label = "Cuenta",
+                selected = currentRoute == "mi_cuenta",
+                colorActivo = colorActivo,
+                colorInactivo = colorInactivo
+            ) {
                 navController.navigate("mi_cuenta") {
                     popUpTo("mi_cuenta") { inclusive = true }
                     launchSingleTop = true
                 }
             }
 
-            // 🔹 LLAMAR
-            IconWithLabel(icon = Icons.Default.Call, label = "Llamar") {
+            IconWithLabel(
+                icon = Icons.Default.Call,
+                label = "Llamar",
+                selected = false, // Nunca se marca como activa
+                colorActivo = colorActivo,
+                colorInactivo = colorInactivo
+            ) {
                 showDialog = true
             }
         }
 
-        // 🔹 BOTÓN FLOTANTE CENTRAL: PEDIR CITA
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .offset(y = (-36).dp)
                 .size(70.dp)
-                .background(Color.Black, CircleShape)
+                .background(fondoMenu, CircleShape)
                 .zIndex(2f)
         ) {
             FloatingActionButton(
                 onClick = {
-                    navController.navigate("pedir_cita") // Asegúrate de tener esta ruta en tu NavHost
+                    navController.navigate("pedir_cita")
                 },
-                backgroundColor = Color.Black,
-                contentColor = Color(0xFF00FF41),
+                backgroundColor = fondoMenu,
+                contentColor = colorInactivo,
                 elevation = FloatingActionButtonDefaults.elevation(8.dp),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(3.dp)
                     .border(
                         width = 5.dp,
-                        color = Color(0xFF00FF41),
+                        color = bordeColor,
                         shape = CircleShape
                     )
             ) {
@@ -136,8 +162,13 @@ fun BottomBarCliente(navController: NavHostController, modifier: Modifier = Modi
 fun IconWithLabel(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
+    selected: Boolean,
+    colorActivo: Color,
+    colorInactivo: Color,
     onClick: (() -> Unit)? = null
 ) {
+    val color = if (selected) colorActivo else colorInactivo
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -146,7 +177,7 @@ fun IconWithLabel(
                 if (onClick != null) it.clickable { onClick() } else it
             }
     ) {
-        Icon(icon, contentDescription = label, tint = Color(0xFF00FF41))
-        Text(label, fontSize = 12.sp, color = Color.White)
+        Icon(icon, contentDescription = label, tint = color)
+        Text(label, fontSize = 12.sp, color = color)
     }
 }
