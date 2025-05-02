@@ -1,20 +1,17 @@
 package com.github.jetbrains.rssreader.androidApp
 
-import com.github.jetbrains.rssreader.androidApp.models.Barberia
 import android.net.Uri
 import android.util.Log
+import com.github.jetbrains.rssreader.androidApp.models.Barberia
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.firestore
 import com.google.firebase.storage.FirebaseStorage
-import java.time.LocalDate
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 
 data class HorarioDia(
     val aperturaManana: String = "",
@@ -804,5 +801,28 @@ object FirebaseService {
             }
             .addOnFailureListener { onResult(null) }
     }
+    fun subirFotoPerfil(userId: String, bitmap: android.graphics.Bitmap, onResult: (String?) -> Unit) {
+        val storageRef = FirebaseStorage.getInstance().reference
+        val imageRef = storageRef.child("fotos_perfil/$userId.jpg")
+
+        val baos = java.io.ByteArrayOutputStream()
+        bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, baos)
+        val data = baos.toByteArray()
+
+        imageRef.putBytes(data)
+            .addOnSuccessListener {
+                imageRef.downloadUrl.addOnSuccessListener { uri ->
+                    // Guardar la URL en Firestore también
+                    FirebaseFirestore.getInstance().collection("usuarios").document(userId)
+                        .update("fotoPerfil", uri.toString())
+                        .addOnSuccessListener { onResult(uri.toString()) }
+                        .addOnFailureListener { onResult(null) }
+                }
+            }
+            .addOnFailureListener {
+                onResult(null)
+            }
+    }
+
 
 }
