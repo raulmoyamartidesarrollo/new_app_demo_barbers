@@ -1,5 +1,4 @@
-
-
+// IMPORTS
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -51,73 +50,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
-
-@Composable
-fun DropdownMenuBoxSimple(
-    opciones: List<String>,
-    seleccionado: String,
-    onSeleccionar: (String) -> Unit,
-    label: String
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Box {
-        OutlinedTextField(
-            value = seleccionado,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(label) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = true }
-        )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            opciones.forEach { opcion ->
-                DropdownMenuItem(onClick = {
-                    onSeleccionar(opcion)
-                    expanded = false
-                }) {
-                    Text(opcion)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun DropdownMenuBoxHorasDisponiblesSimple(
-    horasDisponibles: List<String>,
-    horaSeleccionada: String,
-    onSeleccionar: (String) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Box {
-        OutlinedTextField(
-            value = horaSeleccionada,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Hora disponible") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = true }
-        )
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            horasDisponibles.forEach { hora ->
-                DropdownMenuItem(onClick = {
-                    onSeleccionar(hora)
-                    expanded = false
-                }) {
-                    Text(hora)
-                }
-            }
-        }
-    }
-}
-
+// UTILS
 fun calcularHorasDisponiblesSimple(
     horarioDia: HorarioDia?,
     citas: List<Cita>,
@@ -146,6 +79,63 @@ fun calcularHorasDisponiblesSimple(
     return tramos.filterNot { horasOcupadas.contains(it) }
 }
 
+// DROPDOWN SIMPLES
+@Composable
+fun DropdownMenuBoxSimple(
+    opciones: List<String>,
+    seleccionado: String,
+    onSeleccionar: (String) -> Unit,
+    label: String
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        OutlinedTextField(
+            value = seleccionado,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            modifier = Modifier.fillMaxWidth().clickable { expanded = true }
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            opciones.forEach { opcion ->
+                DropdownMenuItem(onClick = {
+                    onSeleccionar(opcion)
+                    expanded = false
+                }) { Text(opcion) }
+            }
+        }
+    }
+}
+
+@Composable
+fun DropdownMenuBoxHorasDisponiblesSimple(
+    horasDisponibles: List<String>,
+    horaSeleccionada: String,
+    onSeleccionar: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        OutlinedTextField(
+            value = horaSeleccionada,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Hora disponible") },
+            modifier = Modifier.fillMaxWidth().clickable { expanded = true }
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            horasDisponibles.forEach { hora ->
+                DropdownMenuItem(onClick = {
+                    onSeleccionar(hora)
+                    expanded = false
+                }) { Text(hora) }
+            }
+        }
+    }
+}
+
+// DIALOGO CREAR RESERVA
 @Composable
 fun CrearReservaDialogCliente(
     showDialog: MutableState<Boolean>,
@@ -153,7 +143,6 @@ fun CrearReservaDialogCliente(
     horario: Map<String, HorarioDia>,
     servicios: List<Map<String, Any>>,
     negocioId: String,
-    navController: NavHostController,
     fechaPreseleccionada: LocalDate,
     horaPreseleccionada: String,
     onReservaCreada: () -> Unit
@@ -165,19 +154,14 @@ fun CrearReservaDialogCliente(
     var clienteId by remember { mutableStateOf("") }
     val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
     val showCamposObligatorios = remember { mutableStateOf(false) }
-    val showReservaConfirmada = remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        FirebaseService.getCurrentUser()?.uid?.let {
-            clienteId = it
-        }
+        FirebaseService.getCurrentUser()?.uid?.let { clienteId = it }
     }
 
     if (showDialog.value) {
         AlertDialog(
-            onDismissRequest = {
-                showDialog.value = false
-            },
+            onDismissRequest = { showDialog.value = false },
             title = { Text("Pedir cita") },
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -217,9 +201,7 @@ fun CrearReservaDialogCliente(
                     DropdownMenuBoxHorasDisponiblesSimple(
                         horasDisponibles = horasDisponibles,
                         horaSeleccionada = horaSeleccionada
-                    ) {
-                        horaSeleccionada = it
-                    }
+                    ) { horaSeleccionada = it }
                 }
             },
             confirmButton = {
@@ -237,7 +219,6 @@ fun CrearReservaDialogCliente(
                         hora = horaSeleccionada,
                         onSuccess = {
                             showDialog.value = false
-                            showReservaConfirmada.value = true
                             onReservaCreada()
                         },
                         onFailure = { Log.e("Reserva", "Error al guardar: ${it.message}") }
@@ -247,9 +228,7 @@ fun CrearReservaDialogCliente(
                 }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    showDialog.value = false
-                }) {
+                TextButton(onClick = { showDialog.value = false }) {
                     Text("Cancelar")
                 }
             }
@@ -268,26 +247,10 @@ fun CrearReservaDialogCliente(
             }
         )
     }
-
-    if (showReservaConfirmada.value) {
-        AlertDialog(
-            onDismissRequest = { showReservaConfirmada.value = false },
-            title = { Text("Cita guardada") },
-            text = { Text("Tu cita ha sido guardada correctamente.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showReservaConfirmada.value = false
-                    navController.navigate("home_cliente")
-                }) {
-                    Text("Aceptar")
-                }
-            }
-        )
-    }
 }
 
+// PANTALLA PRINCIPAL
 @Composable
-
 fun PedirCitaScreen(navController: NavHostController) {
     val showEditarDialog = remember { mutableStateOf(false) }
     val negocioId = remember { mutableStateOf("") }
@@ -302,6 +265,7 @@ fun PedirCitaScreen(navController: NavHostController) {
     val horaSeleccionada = remember { mutableStateOf("") }
     val citasPeluquero = remember { mutableStateOf<List<Cita>>(emptyList()) }
     val clienteId = remember { mutableStateOf("") }
+    val showReservaConfirmada = remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         FirebaseService.getCurrentUser()?.uid?.let { clienteId.value = it }
@@ -339,14 +303,8 @@ fun PedirCitaScreen(navController: NavHostController) {
             FirebaseService.getCitasPorPeluquero(
                 negocioId = negocioId.value,
                 peluqueroId = id,
-                onSuccess = {
-                    Log.d("CITAS", "Citas obtenidas: ${it.size}")
-                    citasPeluquero.value = it
-                },
-                onFailure = {
-                    Log.e("Firebase", "Error al obtener citas del peluquero: ${it.message}")
-                    citasPeluquero.value = emptyList()
-                }
+                onSuccess = { citasPeluquero.value = it },
+                onFailure = { citasPeluquero.value = emptyList() }
             )
         }
     }
@@ -362,7 +320,7 @@ fun PedirCitaScreen(navController: NavHostController) {
         ) {
             Text("Selecciona peluquero", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
 
-            LazyRow(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+            LazyRow(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
                 items(peluqueros.value) { peluquero ->
                     Card(
                         backgroundColor = if (peluquero.id == peluqueroSeleccionado.value?.id) Color(0xFF4CAF50) else Color.White,
@@ -376,12 +334,7 @@ fun PedirCitaScreen(navController: NavHostController) {
                             modifier = Modifier.padding(8.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(
-                                Icons.Default.AccountCircle,
-                                contentDescription = null,
-                                modifier = Modifier.size(32.dp),
-                                tint = if (peluquero.id == peluqueroSeleccionado.value?.id) Color.White else Color.Black
-                            )
+                            Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(32.dp))
                             Text(
                                 peluquero.nombre,
                                 fontSize = 14.sp,
@@ -393,7 +346,7 @@ fun PedirCitaScreen(navController: NavHostController) {
                 }
             }
 
-            if (peluqueroSeleccionado.value != null) {
+            peluqueroSeleccionado.value?.let {
                 Text("Calendario semanal", color = Color.White, fontWeight = FontWeight.Bold)
                 CalendarioSemanalHorizontalCliente(
                     horario = horario.value,
@@ -424,7 +377,6 @@ fun PedirCitaScreen(navController: NavHostController) {
             horario = horario.value,
             servicios = servicios.value,
             negocioId = negocioId.value,
-            navController = navController,
             fechaPreseleccionada = fechaSeleccionada.value,
             horaPreseleccionada = horaSeleccionada.value,
             onReservaCreada = {
@@ -433,7 +385,10 @@ fun PedirCitaScreen(navController: NavHostController) {
                     FirebaseService.getCitasPorPeluquero(
                         negocioId = negocioId.value,
                         peluqueroId = id,
-                        onSuccess = { citasPeluquero.value = it },
+                        onSuccess = {
+                            citasPeluquero.value = it
+                            showReservaConfirmada.value = true
+                        },
                         onFailure = { Log.e("Firebase", "Error al actualizar citas tras crear") }
                     )
                 }
@@ -441,31 +396,26 @@ fun PedirCitaScreen(navController: NavHostController) {
         )
     }
 
-    if (showDialogBorrar.value && citaSeleccionada.value != null) {
+    if (showReservaConfirmada.value) {
         AlertDialog(
-            onDismissRequest = { showDialogBorrar.value = false },
-            title = { Text("¿Borrar cita?") },
-            text = { Text("¿Estás seguro de que deseas borrar esta cita?") },
+            onDismissRequest = { showReservaConfirmada.value = false },
+            title = { Text("Cita guardada") },
+            text = { Text("Tu cita ha sido guardada correctamente.") },
             confirmButton = {
                 TextButton(onClick = {
-                    FirebaseService.eliminarReserva(
-                        negocioId = negocioId.value,
-                        reservaId = citaSeleccionada.value!!.id,
-                        onSuccess = {
-                            showDialogBorrar.value = false
-                            citasPeluquero.value = citasPeluquero.value.filterNot { it.id == citaSeleccionada.value!!.id }
-                        },
-                        onFailure = {
-                            Log.e("Firebase", "Error al borrar cita: ${it.message}")
-                        }
-                    )
+                    showReservaConfirmada.value = false
+                    // 🔄 Refrescar calendario por si acaso
+                    val id = peluqueroSeleccionado.value?.id
+                    if (!id.isNullOrEmpty() && negocioId.value.isNotEmpty()) {
+                        FirebaseService.getCitasPorPeluquero(
+                            negocioId = negocioId.value,
+                            peluqueroId = id,
+                            onSuccess = { citasPeluquero.value = it },
+                            onFailure = { Log.e("Firebase", "Error al refrescar citas") }
+                        )
+                    }
                 }) {
-                    Text("Sí, borrar")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDialogBorrar.value = false }) {
-                    Text("Cancelar")
+                    Text("Aceptar")
                 }
             }
         )
