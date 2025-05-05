@@ -1,6 +1,7 @@
 package com.github.jetbrains.rssreader.androidApp.screens
 
 import android.util.Log
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -41,7 +43,7 @@ import com.github.jetbrains.rssreader.androidApp.Cita
 import com.github.jetbrains.rssreader.androidApp.FirebaseService
 import com.github.jetbrains.rssreader.androidApp.HorarioDia
 import com.github.jetbrains.rssreader.androidApp.Peluquero
-import com.github.jetbrains.rssreader.androidApp.components.CalendarioSemanalHorizontal
+import com.github.jetbrains.rssreader.androidApp.components.CalendarioSemanalHorizontalCliente
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -290,9 +292,11 @@ fun PedirCitaScreen(navController: NavHostController) {
     val showCrearDialog = remember { mutableStateOf(false) }
     val fechaSeleccionada = remember { mutableStateOf(LocalDate.now()) }
     val horaSeleccionada = remember { mutableStateOf("") }
+    val citasPeluquero = remember { mutableStateOf<List<Cita>>(emptyList()) }
 
+    // Obtener negocio favorito del cliente
     LaunchedEffect(Unit) {
-        FirebaseService.getNegocioIdActual(
+        FirebaseService.getNegocioFavoritoCliente(
             onSuccess = {
                 negocioId.value = it
             },
@@ -302,15 +306,17 @@ fun PedirCitaScreen(navController: NavHostController) {
         )
     }
 
+    // Obtener peluqueros, servicios y horarios del negocio
     LaunchedEffect(negocioId.value) {
         if (negocioId.value.isNotBlank()) {
             FirebaseService.getPeluquerosDelNegocio(negocioId.value) {
                 peluqueros.value = it
                 if (it.size == 1) peluqueroSeleccionado.value = it.firstOrNull()
             }
-            FirebaseService.getHorarioNegocio(
+            FirebaseService.getHorarioNegocioCliente(
+                negocioId = negocioId.value,
                 onSuccess = { horario.value = it },
-                onFailure = { Log.e("Firebase", "Error horario: ${it.message}") }
+                onFailure = { Log.e("Firebase", "Error horario cliente: ${it.message}") }
             )
             FirebaseService.getServiciosNegocio(
                 negocioId.value,
@@ -320,11 +326,33 @@ fun PedirCitaScreen(navController: NavHostController) {
         }
     }
 
+    // Obtener citas del peluquero seleccionado
+    LaunchedEffect(key1 = peluqueroSeleccionado.value?.id, key2 = negocioId.value) {
+        val id = peluqueroSeleccionado.value?.id
+        if (!id.isNullOrEmpty() && negocioId.value.isNotEmpty()) {
+            FirebaseService.getCitasPorPeluquero(
+                negocioId = negocioId.value,
+                peluqueroId = id,
+                onSuccess = {
+                    Log.d("CITAS", "Citas obtenidas: ${it.size}")
+                    citasPeluquero.value = it
+                },
+                onFailure = {
+                    Log.e("Firebase", "Error al obtener citas del peluquero: ${it.message}")
+                    citasPeluquero.value = emptyList()
+                }
+            )
+        }
+    }
+
+    // UI principal
     ScaffoldCliente(navController = navController) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(Color(0xFF1C2D3C))
                 .padding(innerPadding)
+                .statusBarsPadding()
                 .padding(16.dp)
         ) {
             Text(
@@ -365,18 +393,17 @@ fun PedirCitaScreen(navController: NavHostController) {
                 }
             }
 
+            // Mostrar el calendario si hay peluquero seleccionado
             if (peluqueroSeleccionado.value != null) {
                 Text("Calendario semanal", color = Color.White, fontWeight = FontWeight.Bold)
-                CalendarioSemanalHorizontal(
-                    citas = emptyList(), // El cliente no debe ver todas las citas, solo seleccionar hora libre
+                CalendarioSemanalHorizontalCliente(
                     horario = horario.value,
+                    citas = citasPeluquero.value,
                     onCeldaLibreClick = { fecha, hora ->
                         fechaSeleccionada.value = fecha
                         horaSeleccionada.value = hora
                         showCrearDialog.value = true
-                    },
-                    onEditarClick = {},
-                    onEliminarClick = {}
+                    }
                 )
             }
         }

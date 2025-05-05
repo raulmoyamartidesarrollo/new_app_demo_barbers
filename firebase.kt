@@ -527,6 +527,33 @@ object FirebaseService {
             }
             .addOnFailureListener(onFailure)
     }
+    fun getHorarioNegocioCliente(
+        negocioId: String,
+        onSuccess: (Map<String, HorarioDia>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        FirebaseFirestore.getInstance().collection("negocios").document(negocioId).get()
+            .addOnSuccessListener { negocioDoc ->
+                val horarioMap = negocioDoc.get("horario") as? Map<*, *>
+                if (horarioMap != null) {
+                    val horario = horarioMap.mapNotNull { (dia, datos) ->
+                        val datosMap = datos as? Map<*, *> ?: return@mapNotNull null
+                        val diaStr = dia.toString()
+                        val horarioDia = HorarioDia(
+                            aperturaManana = datosMap["aperturaManana"]?.toString() ?: "",
+                            cierreManana = datosMap["cierreManana"]?.toString() ?: "",
+                            aperturaTarde = datosMap["aperturaTarde"]?.toString() ?: "",
+                            cierreTarde = datosMap["cierreTarde"]?.toString() ?: ""
+                        )
+                        diaStr to horarioDia
+                    }.toMap()
+                    onSuccess(horario)
+                } else {
+                    onSuccess(emptyMap())
+                }
+            }
+            .addOnFailureListener(onFailure)
+    }
     fun getReservasPorPeluquero(
         negocioId: String,
         peluqueroId: String,
@@ -833,6 +860,46 @@ object FirebaseService {
             }
             .addOnFailureListener {
                 onResult(null)
+            }
+    }
+
+    suspend fun getNegocioFavoritoCliente(
+        onSuccess: (String) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        val user = getCurrentUser()
+        if (user != null) {
+            val doc = firestore.collection("clientes").document(user.uid).get().await()
+            val negocioId = doc.getString("idnegocio")
+            if (negocioId != null) {
+                onSuccess(negocioId)
+            } else {
+                onFailure(Exception("Negocio favorito no definido para el cliente"))
+            }
+        } else {
+            onFailure(Exception("Usuario no autenticado"))
+        }
+    }
+    fun getCitasPorPeluquero(
+        negocioId: String,
+        peluqueroId: String,
+        onSuccess: (List<Cita>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        val db = Firebase.firestore
+        db.collection("negocios")
+            .document(negocioId)
+            .collection("reservas")
+            .whereEqualTo("idPeluquero", peluqueroId)
+            .get()
+            .addOnSuccessListener { result ->
+                val citas = result.documents.mapNotNull { doc ->
+                    doc.toObject(Cita::class.java)?.copy(id = doc.id)
+                }
+                onSuccess(citas)
+            }
+            .addOnFailureListener { exception ->
+                onFailure(exception)
             }
     }
 
