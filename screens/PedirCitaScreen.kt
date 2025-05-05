@@ -155,7 +155,8 @@ fun CrearReservaDialogCliente(
     negocioId: String,
     navController: NavHostController,
     fechaPreseleccionada: LocalDate,
-    horaPreseleccionada: String
+    horaPreseleccionada: String,
+    onReservaCreada: () -> Unit
 ) {
     var peluqueroSeleccionado by remember { mutableStateOf<Peluquero?>(null) }
     var servicioSeleccionadoId by remember { mutableStateOf("") }
@@ -237,6 +238,7 @@ fun CrearReservaDialogCliente(
                         onSuccess = {
                             showDialog.value = false
                             showReservaConfirmada.value = true
+                            onReservaCreada()
                         },
                         onFailure = { Log.e("Reserva", "Error al guardar: ${it.message}") }
                     )
@@ -424,7 +426,18 @@ fun PedirCitaScreen(navController: NavHostController) {
             negocioId = negocioId.value,
             navController = navController,
             fechaPreseleccionada = fechaSeleccionada.value,
-            horaPreseleccionada = horaSeleccionada.value
+            horaPreseleccionada = horaSeleccionada.value,
+            onReservaCreada = {
+                val id = peluqueroSeleccionado.value?.id
+                if (!id.isNullOrEmpty() && negocioId.value.isNotEmpty()) {
+                    FirebaseService.getCitasPorPeluquero(
+                        negocioId = negocioId.value,
+                        peluqueroId = id,
+                        onSuccess = { citasPeluquero.value = it },
+                        onFailure = { Log.e("Firebase", "Error al actualizar citas tras crear") }
+                    )
+                }
+            }
         )
     }
 
