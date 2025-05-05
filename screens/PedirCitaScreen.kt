@@ -1,4 +1,4 @@
-package com.github.jetbrains.rssreader.androidApp.screens
+
 
 import android.util.Log
 import androidx.compose.foundation.background
@@ -44,11 +44,13 @@ import com.github.jetbrains.rssreader.androidApp.FirebaseService
 import com.github.jetbrains.rssreader.androidApp.HorarioDia
 import com.github.jetbrains.rssreader.androidApp.Peluquero
 import com.github.jetbrains.rssreader.androidApp.components.CalendarioSemanalHorizontalCliente
+import com.github.jetbrains.rssreader.androidApp.screens.ScaffoldCliente
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+
 
 @Composable
 fun DropdownMenuBoxSimple(
@@ -283,30 +285,33 @@ fun CrearReservaDialogCliente(
 }
 
 @Composable
+
 fun PedirCitaScreen(navController: NavHostController) {
+    val showEditarDialog = remember { mutableStateOf(false) }
     val negocioId = remember { mutableStateOf("") }
     val peluqueros = remember { mutableStateOf<List<Peluquero>>(emptyList()) }
     val peluqueroSeleccionado = remember { mutableStateOf<Peluquero?>(null) }
     val horario = remember { mutableStateOf<Map<String, HorarioDia>>(emptyMap()) }
     val servicios = remember { mutableStateOf<List<Map<String, Any>>>(emptyList()) }
     val showCrearDialog = remember { mutableStateOf(false) }
+    val showDialogBorrar = remember { mutableStateOf(false) }
+    val citaSeleccionada = remember { mutableStateOf<Cita?>(null) }
     val fechaSeleccionada = remember { mutableStateOf(LocalDate.now()) }
     val horaSeleccionada = remember { mutableStateOf("") }
     val citasPeluquero = remember { mutableStateOf<List<Cita>>(emptyList()) }
+    val clienteId = remember { mutableStateOf("") }
 
-    // Obtener negocio favorito del cliente
+    LaunchedEffect(Unit) {
+        FirebaseService.getCurrentUser()?.uid?.let { clienteId.value = it }
+    }
+
     LaunchedEffect(Unit) {
         FirebaseService.getNegocioFavoritoCliente(
-            onSuccess = {
-                negocioId.value = it
-            },
-            onFailure = {
-                Log.e("Firebase", "Error al obtener negocioId: ${it.message}")
-            }
+            onSuccess = { negocioId.value = it },
+            onFailure = { Log.e("Firebase", "Error al obtener negocioId: ${it.message}") }
         )
     }
 
-    // Obtener peluqueros, servicios y horarios del negocio
     LaunchedEffect(negocioId.value) {
         if (negocioId.value.isNotBlank()) {
             FirebaseService.getPeluquerosDelNegocio(negocioId.value) {
@@ -326,7 +331,6 @@ fun PedirCitaScreen(navController: NavHostController) {
         }
     }
 
-    // Obtener citas del peluquero seleccionado
     LaunchedEffect(key1 = peluqueroSeleccionado.value?.id, key2 = negocioId.value) {
         val id = peluqueroSeleccionado.value?.id
         if (!id.isNullOrEmpty() && negocioId.value.isNotEmpty()) {
@@ -345,7 +349,6 @@ fun PedirCitaScreen(navController: NavHostController) {
         }
     }
 
-    // UI principal
     ScaffoldCliente(navController = navController) { innerPadding ->
         Column(
             modifier = Modifier
@@ -355,12 +358,7 @@ fun PedirCitaScreen(navController: NavHostController) {
                 .statusBarsPadding()
                 .padding(16.dp)
         ) {
-            Text(
-                text = "Selecciona peluquero",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
-            )
+            Text("Selecciona peluquero", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
 
             LazyRow(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
                 items(peluqueros.value) { peluquero ->
@@ -393,23 +391,30 @@ fun PedirCitaScreen(navController: NavHostController) {
                 }
             }
 
-            // Mostrar el calendario si hay peluquero seleccionado
             if (peluqueroSeleccionado.value != null) {
                 Text("Calendario semanal", color = Color.White, fontWeight = FontWeight.Bold)
                 CalendarioSemanalHorizontalCliente(
                     horario = horario.value,
                     citas = citasPeluquero.value,
+                    clienteId = clienteId.value,
                     onCeldaLibreClick = { fecha, hora ->
                         fechaSeleccionada.value = fecha
                         horaSeleccionada.value = hora
                         showCrearDialog.value = true
+                    },
+                    onEditarClick = { cita ->
+                        citaSeleccionada.value = cita
+                        showEditarDialog.value = true
+                    },
+                    onEliminarClick = { cita ->
+                        citaSeleccionada.value = cita
+                        showDialogBorrar.value = true
                     }
                 )
             }
         }
     }
 
-    // Mostrar el diálogo para crear la cita como cliente
     if (showCrearDialog.value) {
         CrearReservaDialogCliente(
             showDialog = showCrearDialog,
@@ -420,6 +425,36 @@ fun PedirCitaScreen(navController: NavHostController) {
             navController = navController,
             fechaPreseleccionada = fechaSeleccionada.value,
             horaPreseleccionada = horaSeleccionada.value
+        )
+    }
+
+    if (showDialogBorrar.value && citaSeleccionada.value != null) {
+        AlertDialog(
+            onDismissRequest = { showDialogBorrar.value = false },
+            title = { Text("¿Borrar cita?") },
+            text = { Text("¿Estás seguro de que deseas borrar esta cita?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    FirebaseService.eliminarReserva(
+                        negocioId = negocioId.value,
+                        reservaId = citaSeleccionada.value!!.id,
+                        onSuccess = {
+                            showDialogBorrar.value = false
+                            citasPeluquero.value = citasPeluquero.value.filterNot { it.id == citaSeleccionada.value!!.id }
+                        },
+                        onFailure = {
+                            Log.e("Firebase", "Error al borrar cita: ${it.message}")
+                        }
+                    )
+                }) {
+                    Text("Sí, borrar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialogBorrar.value = false }) {
+                    Text("Cancelar")
+                }
+            }
         )
     }
 }

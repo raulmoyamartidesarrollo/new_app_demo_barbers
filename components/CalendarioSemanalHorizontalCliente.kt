@@ -10,12 +10,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
@@ -28,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -45,7 +49,10 @@ import java.util.Locale
 fun CalendarioSemanalHorizontalCliente(
     horario: Map<String, HorarioDia>,
     citas: List<Cita>,
-    onCeldaLibreClick: (LocalDate, String) -> Unit
+    clienteId: String,
+    onCeldaLibreClick: (LocalDate, String) -> Unit,
+    onEditarClick: (Cita) -> Unit,
+    onEliminarClick: (Cita) -> Unit
 ) {
     var semanaOffset by remember { mutableStateOf(0) }
     val hoy = LocalDate.now(ZoneId.systemDefault())
@@ -59,6 +66,7 @@ fun CalendarioSemanalHorizontalCliente(
     val scrollHorizontal = rememberScrollState()
     val scrollVertical = rememberScrollState()
     val ahora = remember { LocalTime.now() }
+    val seleccionCita = remember { mutableStateOf<Cita?>(null) }
 
     val todasLasHoras = remember(horario) {
         val tramos = sortedSetOf<LocalTime>()
@@ -78,8 +86,6 @@ fun CalendarioSemanalHorizontalCliente(
         Log.d("CALENDARIO", "📅 Horas generadas: $horas")
         horas
     }
-
-    Log.d("CALENDARIO", "📅 Calendario renderizado con ${citas.size} citas")
 
     Column(
         modifier = Modifier
@@ -107,9 +113,9 @@ fun CalendarioSemanalHorizontalCliente(
                 fontWeight = FontWeight.Bold
             )
 
-            TextButton(
-                onClick = { semanaOffset++ }
-            ) { Text(">", color = Color.White) }
+            TextButton(onClick = { semanaOffset++ }) {
+                Text(">", color = Color.White)
+            }
         }
 
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -190,17 +196,70 @@ fun CalendarioSemanalHorizontalCliente(
                                     .padding(2.dp)
                                     .background(colorFondo)
                                     .then(if (cita != null) Modifier.border(2.dp, Color.Red) else Modifier)
-                                    .pointerInput(Unit) {
-                                        detectTapGestures {
-                                            if (cita == null && franjasValidas.contains(hora) && !dia.isBefore(hoy)) {
-                                                onCeldaLibreClick(dia, hora)
+                                    .pointerInput(cita) {
+                                        detectTapGestures(
+                                            onTap = {
+                                                if (cita == null && franjasValidas.contains(hora) && !dia.isBefore(hoy)) {
+                                                    onCeldaLibreClick(dia, hora)
+                                                }
+                                            },
+                                            onLongPress = {
+                                                if (cita != null && cita.idCliente == clienteId) {
+                                                    seleccionCita.value = cita
+                                                }
                                             }
-                                        }
+                                        )
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (cita != null) {
-                                    Text("R", fontSize = 12.sp, color = Color.Red, fontWeight = FontWeight.Bold)
+                                    val texto = if (cita.idCliente == clienteId) "R" else "O"
+                                    val colorTexto = if (texto == "R") Color.Red else Color.DarkGray
+                                    Text(texto, fontSize = 12.sp, color = colorTexto, fontWeight = FontWeight.Bold)
+
+                                    if (seleccionCita.value == cita) {
+                                        Box(
+                                            modifier = Modifier
+                                                .absoluteOffset(y = (-horaAltura))
+                                                .fillMaxWidth()
+                                                .background(Color.White)
+                                                .border(1.dp, Color.Gray)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(4.dp),
+                                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                IconButton(onClick = {
+                                                    onEditarClick(cita)
+                                                    seleccionCita.value = null
+                                                }) {
+                                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                        Icon(
+                                                            painter = painterResource(id = android.R.drawable.ic_menu_edit),
+                                                            contentDescription = "Editar",
+                                                            tint = Color(0xFF3F51B5)
+                                                        )
+                                                        Text("Editar", fontSize = 10.sp, color = Color.Black)
+                                                    }
+                                                }
+
+                                                IconButton(onClick = {
+                                                    onEliminarClick(cita)
+                                                    seleccionCita.value = null
+                                                }) {
+                                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                        Icon(
+                                                            painter = painterResource(id = android.R.drawable.ic_menu_delete),
+                                                            contentDescription = "Eliminar",
+                                                            tint = Color(0xFFF44336)
+                                                        )
+                                                        Text("Eliminar", fontSize = 10.sp, color = Color.Black)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -208,7 +267,6 @@ fun CalendarioSemanalHorizontalCliente(
                 }
             }
 
-            // Línea azul para la hora actual (solo si es hoy)
             if (diasSemana.contains(hoy)) {
                 val indexDia = diasSemana.indexOf(hoy)
                 val minutosDesdeInicio = ahora.hour * 60 + ahora.minute
