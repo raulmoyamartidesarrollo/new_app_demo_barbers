@@ -599,6 +599,49 @@ object FirebaseService {
             .addOnSuccessListener { onSuccess() }
             .addOnFailureListener { onFailure(it) }
     }
+    fun actualizarReservaCliente(
+        negocioId: String,
+        reservaId: String,
+        nuevaFecha: String,
+        nuevaHora: String,
+        nuevoPeluqueroId: String,
+        nuevoServicioId: String,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        val db = FirebaseFirestore.getInstance()
+        val reservaRef = db
+            .collection("negocios")
+            .document(negocioId)
+            .collection("reservas")
+            .document(reservaId)
+
+        val nuevosDatos = mapOf(
+            "fecha" to nuevaFecha,
+            "hora" to nuevaHora,
+            "peluqueroId" to nuevoPeluqueroId,
+            "servicioId" to nuevoServicioId
+        )
+
+        reservaRef.update(nuevosDatos)
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onFailure(it) }
+    }
+    fun borrarReservaCliente(
+        negocioId: String,
+        reservaId: String,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        val db = FirebaseFirestore.getInstance()
+        db.collection("negocios")
+            .document(negocioId)
+            .collection("reservas")
+            .document(reservaId)
+            .delete()
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onFailure(it) }
+    }
 
 
     fun getTodasLasBarberias(

@@ -267,6 +267,127 @@ fun PedirCitaScreen(navController: NavHostController) {
     val clienteId = remember { mutableStateOf("") }
     val showReservaConfirmada = remember { mutableStateOf(false) }
 
+
+
+
+    @Composable
+    fun EditarReservaDialogCliente(
+        showDialog: MutableState<Boolean>,
+        cita: Cita,
+        peluqueros: List<Peluquero>,
+        horario: Map<String, HorarioDia>,
+        servicios: List<Map<String, Any>>,
+        negocioId: String,
+        onReservaEditada: () -> Unit
+    ) {
+        val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+
+        var peluqueroSeleccionado by remember { mutableStateOf<Peluquero?>(null) }
+        var servicioSeleccionadoId by remember { mutableStateOf("") }
+        var horaSeleccionada by remember { mutableStateOf("") }
+        var fechaSeleccionada by remember { mutableStateOf(LocalDate.now()) }
+        val showCamposObligatorios = remember { mutableStateOf(false) }
+
+        // ✅ Esto fuerza la precarga al cambiar la cita
+        LaunchedEffect(cita) {
+            peluqueroSeleccionado = peluqueros.find { it.id == cita.idPeluquero }
+            servicioSeleccionadoId = cita.idServicio
+            horaSeleccionada = cita.hora
+            fechaSeleccionada = LocalDate.parse(cita.fecha, formatter)
+        }
+
+        if (showDialog.value) {
+            AlertDialog(
+                onDismissRequest = { showDialog.value = false },
+                title = { Text("Editar cita") },
+                text = {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        DropdownMenuBoxSimple(
+                            opciones = listOf("Selecciona un peluquero") + peluqueros.map { "${it.nombre} ${it.apellidos}" },
+                            seleccionado = peluqueroSeleccionado?.let { "${it.nombre} ${it.apellidos}" } ?: "Selecciona un peluquero",
+                            onSeleccionar = { nombre ->
+                                peluqueroSeleccionado = peluqueros.find { "${it.nombre} ${it.apellidos}" == nombre }
+                            },
+                            label = "Peluquero"
+                        )
+                        Spacer(Modifier.height(8.dp))
+
+                        val opcionesServicios = servicios.map { it["id"].toString() to it["nombre"].toString() }
+                        val nombreServicioSeleccionado = opcionesServicios.find { it.first == servicioSeleccionadoId }?.second ?: ""
+
+                        DropdownMenuBoxSimple(
+                            opciones = opcionesServicios.map { it.second },
+                            seleccionado = nombreServicioSeleccionado,
+                            onSeleccionar = { nombre ->
+                                servicioSeleccionadoId = opcionesServicios.find { it.second == nombre }?.first ?: ""
+                            },
+                            label = "Selecciona servicio"
+                        )
+
+                        Spacer(Modifier.height(8.dp))
+
+                        val nombreDia = fechaSeleccionada.dayOfWeek.getDisplayName(TextStyle.FULL, Locale("es"))
+                            .replaceFirstChar { it.uppercaseChar() }
+
+                        val horasDisponibles = calcularHorasDisponiblesSimple(
+                            horario[nombreDia],
+                            emptyList(),
+                            fechaSeleccionada
+                        ) + cita.hora // incluye la actual por si ya está ocupada
+
+                        DropdownMenuBoxHorasDisponiblesSimple(
+                            horasDisponibles = horasDisponibles.distinct(),
+                            horaSeleccionada = horaSeleccionada
+                        ) { horaSeleccionada = it }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        if (peluqueroSeleccionado == null || servicioSeleccionadoId.isBlank() || horaSeleccionada.isBlank() || negocioId.isBlank()) {
+                            showCamposObligatorios.value = true
+                            return@TextButton
+                        }
+                        FirebaseService.actualizarReservaCliente(
+                            negocioId = negocioId,
+                            reservaId = cita.id,
+                            nuevaFecha = fechaSeleccionada.format(formatter),
+                            nuevaHora = horaSeleccionada,
+                            nuevoPeluqueroId = peluqueroSeleccionado!!.id,
+                            nuevoServicioId = servicioSeleccionadoId,
+                            onSuccess = {
+                                showDialog.value = false
+                                onReservaEditada()
+                            },
+                            onFailure = {
+                                Log.e("Reserva", "Error al editar reserva: ${it.message}")
+                            }
+                        )
+                    }) {
+                        Text("Guardar cambios")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDialog.value = false }) {
+                        Text("Cancelar")
+                    }
+                }
+            )
+        }
+
+        if (showCamposObligatorios.value) {
+            AlertDialog(
+                onDismissRequest = { showCamposObligatorios.value = false },
+                title = { Text("Campos obligatorios") },
+                text = { Text("Completa todos los campos para guardar los cambios.") },
+                confirmButton = {
+                    TextButton(onClick = { showCamposObligatorios.value = false }) {
+                        Text("OK")
+                    }
+                }
+            )
+        }
+    }
+
     LaunchedEffect(Unit) {
         FirebaseService.getCurrentUser()?.uid?.let { clienteId.value = it }
     }
@@ -395,7 +516,44 @@ fun PedirCitaScreen(navController: NavHostController) {
             }
         )
     }
-
+    if (showDialogBorrar.value && citaSeleccionada.value != null) {
+        AlertDialog(
+            onDismissRequest = { showDialogBorrar.value = false },
+            title = { Text("¿Eliminar cita?") },
+            text = { Text("¿Estás seguro de que quieres cancelar esta cita?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    FirebaseService.borrarReservaCliente(
+                        negocioId = negocioId.value,
+                        reservaId = citaSeleccionada.value!!.id,
+                        onSuccess = {
+                            showDialogBorrar.value = false
+                            val id = peluqueroSeleccionado.value?.id
+                            if (!id.isNullOrEmpty()) {
+                                FirebaseService.getCitasPorPeluquero(
+                                    negocioId = negocioId.value,
+                                    peluqueroId = id,
+                                    onSuccess = { citasPeluquero.value = it },
+                                    onFailure = { Log.e("Firebase", "Error al actualizar citas tras borrar") }
+                                )
+                            }
+                        },
+                        onFailure = { e ->
+                            Log.e("Firebase", "Error al borrar cita: ${e.message}")
+                            showDialogBorrar.value = false
+                        }
+                    )
+                }) {
+                    Text("Sí, borrar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialogBorrar.value = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
     if (showReservaConfirmada.value) {
         AlertDialog(
             onDismissRequest = { showReservaConfirmada.value = false },
@@ -416,6 +574,28 @@ fun PedirCitaScreen(navController: NavHostController) {
                     }
                 }) {
                     Text("Aceptar")
+                }
+            }
+        )
+    }
+
+    if (showEditarDialog.value && citaSeleccionada.value != null) {
+        EditarReservaDialogCliente(
+            showDialog = showEditarDialog,
+            cita = citaSeleccionada.value!!,
+            peluqueros = peluqueros.value,
+            horario = horario.value,
+            servicios = servicios.value,
+            negocioId = negocioId.value,
+            onReservaEditada = {
+                val id = peluqueroSeleccionado.value?.id
+                if (!id.isNullOrEmpty()) {
+                    FirebaseService.getCitasPorPeluquero(
+                        negocioId = negocioId.value,
+                        peluqueroId = id,
+                        onSuccess = { citasPeluquero.value = it },
+                        onFailure = { Log.e("Firebase", "Error al refrescar citas editadas") }
+                    )
                 }
             }
         )
