@@ -1,7 +1,10 @@
 package com.github.jetbrains.rssreader.androidApp.screens
 
+import DropdownMenuBoxHorasDisponiblesSimple
+import DropdownMenuBoxSimple
 import android.Manifest
 import android.os.Build
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -31,6 +34,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,11 +50,18 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
 import com.github.jetbrains.rssreader.androidApp.Cita
 import com.github.jetbrains.rssreader.androidApp.FirebaseService
+import com.github.jetbrains.rssreader.androidApp.HorarioDia
+import com.github.jetbrains.rssreader.androidApp.Peluquero
+import com.github.jetbrains.rssreader.androidApp.calcularHorasDisponiblesSimple
 import com.github.jetbrains.rssreader.androidApp.components.ChatBotCliente
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.firebase.auth.FirebaseAuth
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -58,18 +69,7 @@ fun HomeClienteScreen(navController: NavHostController) {
     val auth = remember { FirebaseAuth.getInstance() }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var nombreUsuario by remember { mutableStateOf("") }
-    var ultimaCita by remember {
-        mutableStateOf(
-            mapOf(
-                "fecha" to "-",
-                "hora" to "-",
-                "servicio" to "-",
-                "estado" to "-",
-                "peluquero" to "-",
-                "precio" to "-"
-            )
-        )
-    }
+    var citaCompleta by remember { mutableStateOf<Cita?>(null) }
     val completadas = 4
 
     val permissions = buildList {
@@ -87,20 +87,29 @@ fun HomeClienteScreen(navController: NavHostController) {
     val textoSecundario = Color(0xFF8E8E93)
     val botonsecundario = Color(0xFFFF6680)
 
+    val showEditarDialog = remember { mutableStateOf(false) }
+    val peluqueros = remember { mutableStateOf<List<Peluquero>>(emptyList()) }
+    val horario = remember { mutableStateOf<Map<String, HorarioDia>>(emptyMap()) }
+    val servicios = remember { mutableStateOf<List<Map<String, Any>>>(emptyList()) }
+    var negocioId by remember { mutableStateOf("") }
+
     LaunchedEffect(Unit) {
         FirebaseService.getUserName()?.let {
-            nombreUsuario = FirebaseService.getUserName() ?: "Usuario"
+            nombreUsuario = it
         }
-        FirebaseService.getUltimaCitaCliente { cita: Cita? ->
+        FirebaseService.getUltimaCitaCliente { cita ->
             cita?.let {
-                ultimaCita = mapOf(
-                    "fecha" to it.fecha,
-                    "hora" to it.hora,
-                    "servicio" to it.servicio,
-                    "estado" to it.estado,
-                    "peluquero" to it.nombreCliente,
-                    "precio" to "${it.precio} €"
-                )
+                citaCompleta = it
+            }
+        }
+        FirebaseService.getCurrentUser()?.uid?.let { uid ->
+            FirebaseService.obtenerBarberiaFavorita(uid) { idNegocio ->
+                if (idNegocio != null) {
+                    negocioId = idNegocio
+                    FirebaseService.getPeluquerosDelNegocio(idNegocio) { peluqueros.value = it }
+                    FirebaseService.getHorarioNegocioCliente(idNegocio, { horario.value = it }, { })
+                    FirebaseService.getServiciosNegocio(idNegocio, { servicios.value = it }, { })
+                }
             }
         }
     }
@@ -150,21 +159,21 @@ fun HomeClienteScreen(navController: NavHostController) {
                     modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
                 ) {
                     Column(modifier = Modifier.padding(20.dp)) {
-                        Text("📅 Fecha: ${ultimaCita["fecha"]}", color = textoPrincipal, fontSize = 16.sp)
-                        Text("⏰ Hora: ${ultimaCita["hora"]}", color = textoPrincipal, fontSize = 16.sp)
-                        Text("💇 Servicio: ${ultimaCita["servicio"]}", color = textoPrincipal, fontSize = 16.sp)
-                        Text("🎯 Precio: ${ultimaCita["precio"]}", color = textoPrincipal, fontSize = 16.sp)
-                        Text("👤 Peluquero: ${ultimaCita["peluquero"]}", color = textoPrincipal, fontSize = 16.sp)
+                        Text("📅 Fecha: ${citaCompleta?.fecha ?: "-"}", color = textoPrincipal, fontSize = 16.sp)
+                        Text("⏰ Hora: ${citaCompleta?.hora ?: "-"}", color = textoPrincipal, fontSize = 16.sp)
+                        Text("💇 Servicio: ${citaCompleta?.servicio ?: "-"}", color = textoPrincipal, fontSize = 16.sp)
+                        Text("🎯 Precio: ${citaCompleta?.precio ?: "-"} €", color = textoPrincipal, fontSize = 16.sp)
+                        Text("👤 Peluquero: ${citaCompleta?.nombreCliente ?: "-"}", color = textoPrincipal, fontSize = 16.sp)
                         Text(
-                            "📝 Estado: ${ultimaCita["estado"]}",
-                            color = if (ultimaCita["estado"] == "pendiente") acento else Color(0xFF4CD964),
+                            "📝 Estado: ${citaCompleta?.estado ?: "-"}",
+                            color = if (citaCompleta?.estado == "pendiente") acento else Color(0xFF4CD964),
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
                         Spacer(modifier = Modifier.height(16.dp))
-                        if (ultimaCita["estado"] == "pendiente") {
+                        if (citaCompleta?.estado == "pendiente") {
                             Button(
-                                onClick = { /* editar cita */ },
+                                onClick = { showEditarDialog.value = true },
                                 colors = ButtonDefaults.buttonColors(backgroundColor = acento),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.fillMaxWidth()
@@ -173,9 +182,7 @@ fun HomeClienteScreen(navController: NavHostController) {
                             }
                         } else {
                             Button(
-                                onClick = {
-                                    navController.navigate("pedir_cita")
-                                },
+                                onClick = { navController.navigate("pedir_cita") },
                                 colors = ButtonDefaults.buttonColors(backgroundColor = acento),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.fillMaxWidth()
@@ -207,11 +214,7 @@ fun HomeClienteScreen(navController: NavHostController) {
                                             .size(50.dp)
                                             .clip(RoundedCornerShape(12.dp))
                                             .background(Color.White)
-                                            .border(
-                                                2.dp,
-                                                if (index < completadas) Color(0xFF00FF41) else Color.LightGray,
-                                                RoundedCornerShape(12.dp)
-                                            ),
+                                            .border(2.dp, if (index < completadas) Color(0xFF00FF41) else Color.LightGray, RoundedCornerShape(12.dp)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         if (index < completadas) {
@@ -282,6 +285,131 @@ fun HomeClienteScreen(navController: NavHostController) {
                     properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
                 )
             }
+
+            if (showEditarDialog.value && citaCompleta != null) {
+                EditarReservaDialogCliente(
+                    showDialog = showEditarDialog,
+                    cita = citaCompleta!!,
+                    peluqueros = peluqueros.value,
+                    horario = horario.value,
+                    servicios = servicios.value,
+                    negocioId = negocioId,
+                    onReservaEditada = {
+                        showEditarDialog.value = false
+                    }
+                )
+            }
         }
+    }
+}
+
+@Composable
+fun EditarReservaDialogCliente(
+    showDialog: MutableState<Boolean>,
+    cita: Cita,
+    peluqueros: List<Peluquero>,
+    horario: Map<String, HorarioDia>,
+    servicios: List<Map<String, Any>>,
+    negocioId: String,
+    onReservaEditada: () -> Unit
+) {
+    val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    var peluqueroSeleccionado by remember { mutableStateOf(peluqueros.find { it.id == cita.idPeluquero }) }
+    var servicioSeleccionadoId by remember { mutableStateOf(cita.idServicio) }
+    var horaSeleccionada by remember { mutableStateOf(cita.hora) }
+    var fechaSeleccionada by remember { mutableStateOf(LocalDate.parse(cita.fecha, formatter)) }
+    val showCamposObligatorios = remember { mutableStateOf(false) }
+
+    if (showDialog.value) {
+        AlertDialog(
+            onDismissRequest = { showDialog.value = false },
+            title = { Text("Editar cita") },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    DropdownMenuBoxSimple(
+                        opciones = listOf("Selecciona un peluquero") + peluqueros.map { "${it.nombre} ${it.apellidos}" },
+                        seleccionado = peluqueroSeleccionado?.let { "${it.nombre} ${it.apellidos}" } ?: "Selecciona un peluquero",
+                        onSeleccionar = { nombre ->
+                            peluqueroSeleccionado = peluqueros.find { "${it.nombre} ${it.apellidos}" == nombre }
+                        },
+                        label = "Peluquero"
+                    )
+                    Spacer(Modifier.height(8.dp))
+
+                    val opcionesServicios = servicios.map { it["id"].toString() to it["nombre"].toString() }
+                    val nombreServicioSeleccionado = opcionesServicios.find { it.first == servicioSeleccionadoId }?.second ?: ""
+
+                    DropdownMenuBoxSimple(
+                        opciones = opcionesServicios.map { it.second },
+                        seleccionado = nombreServicioSeleccionado,
+                        onSeleccionar = { nombre ->
+                            servicioSeleccionadoId = opcionesServicios.find { it.second == nombre }?.first ?: ""
+                        },
+                        label = "Selecciona servicio"
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    val nombreDia = fechaSeleccionada.dayOfWeek.getDisplayName(TextStyle.FULL, Locale("es"))
+                        .replaceFirstChar { it.uppercaseChar() }
+
+                    val horasDisponibles = calcularHorasDisponiblesSimple(
+                        horario[nombreDia],
+                        emptyList(),
+                        fechaSeleccionada
+                    ) + cita.hora
+
+                    DropdownMenuBoxHorasDisponiblesSimple(
+                        horasDisponibles = horasDisponibles.distinct(),
+                        horaSeleccionada = horaSeleccionada
+                    ) {
+                        horaSeleccionada = it
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (peluqueroSeleccionado == null || servicioSeleccionadoId.isBlank() || horaSeleccionada.isBlank() || negocioId.isBlank()) {
+                        showCamposObligatorios.value = true
+                        return@TextButton
+                    }
+                    FirebaseService.actualizarReservaCliente(
+                        negocioId = negocioId,
+                        reservaId = cita.id,
+                        nuevaFecha = fechaSeleccionada.format(formatter),
+                        nuevaHora = horaSeleccionada,
+                        nuevoPeluqueroId = peluqueroSeleccionado!!.id,
+                        nuevoServicioId = servicioSeleccionadoId,
+                        onSuccess = {
+                            showDialog.value = false
+                            onReservaEditada()
+                        },
+                        onFailure = {
+                            Log.e("Reserva", "Error al editar reserva: ${it.message}")
+                        }
+                    )
+                }) {
+                    Text("Guardar cambios")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialog.value = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (showCamposObligatorios.value) {
+        AlertDialog(
+            onDismissRequest = { showCamposObligatorios.value = false },
+            title = { Text("Campos obligatorios") },
+            text = { Text("Completa todos los campos para guardar los cambios.") },
+            confirmButton = {
+                TextButton(onClick = { showCamposObligatorios.value = false }) {
+                    Text("OK")
+                }
+            }
+        )
     }
 }

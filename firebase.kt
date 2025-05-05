@@ -11,7 +11,40 @@ import com.google.firebase.firestore.firestore
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import java.util.Date
+
+fun calcularHorasDisponiblesSimple(
+    horarioDia: HorarioDia?,
+    citas: List<Cita>,
+    fechaSeleccionada: LocalDate
+): List<String> {
+    if (horarioDia == null) return emptyList()
+
+    val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    val tramos = mutableListOf<String>()
+
+    listOf(
+        horarioDia.aperturaManana to horarioDia.cierreManana,
+        horarioDia.aperturaTarde to horarioDia.cierreTarde
+    ).forEach { (inicio, fin) ->
+        if (!inicio.isNullOrBlank() && !fin.isNullOrBlank()) {
+            var horaActual = LocalTime.parse(inicio)
+            val horaFin = LocalTime.parse(fin)
+            while (!horaActual.isAfter(horaFin)) {
+                tramos.add(horaActual.toString().substring(0, 5))
+                horaActual = horaActual.plusMinutes(30)
+            }
+        }
+    }
+
+    val fechaStr = fechaSeleccionada.format(formatter)
+    val horasOcupadas = citas.filter { it.fecha == fechaStr }.map { it.hora.trim() }
+
+    return tramos.filterNot { horasOcupadas.contains(it) }
+}
 
 data class HorarioDia(
     val aperturaManana: String = "",
@@ -65,6 +98,7 @@ object FirebaseService {
     fun logout() {
         auth.signOut()
     }
+
 
     fun getNegocioIdActual(onSuccess: (String) -> Unit, onFailure: (Exception) -> Unit) {
         val currentUser = auth.currentUser ?: return onFailure(Exception("Usuario no autenticado"))
