@@ -71,6 +71,7 @@ fun HomeClienteScreen(navController: NavHostController) {
     var nombreUsuario by remember { mutableStateOf("") }
     var citaCompleta by remember { mutableStateOf<Cita?>(null) }
     val completadas = 4
+    val showBorrarDialog = remember { mutableStateOf(false) }
 
     val permissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -180,6 +181,15 @@ fun HomeClienteScreen(navController: NavHostController) {
                             ) {
                                 Text("Editar cita", color = Color.White)
                             }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = { showBorrarDialog.value = true },
+                                colors = ButtonDefaults.buttonColors(backgroundColor = Color.Gray),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Cancelar cita", color = Color.White)
+                            }
                         } else {
                             Button(
                                 onClick = { navController.navigate("pedir_cita") },
@@ -283,6 +293,38 @@ fun HomeClienteScreen(navController: NavHostController) {
                     backgroundColor = Color.White,
                     contentColor = textoPrincipal,
                     properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
+                )
+            }
+            if (showBorrarDialog.value && citaCompleta != null) {
+                AlertDialog(
+                    onDismissRequest = { showBorrarDialog.value = false },
+                    title = { Text("Cancelar cita") },
+                    text = { Text("¿Estás seguro de que quieres cancelar esta cita?") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            FirebaseService.borrarReservaCliente(
+                                negocioId = negocioId,
+                                reservaId = citaCompleta!!.id,
+                                onSuccess = {
+                                    citaCompleta = null
+                                    showBorrarDialog.value = false
+                                },
+                                onFailure = {
+                                    Log.e("Reserva", "Error al cancelar cita: ${it.message}")
+                                    showBorrarDialog.value = false
+                                }
+                            )
+                        }) {
+                            Text("Sí, cancelar")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showBorrarDialog.value = false }) {
+                            Text("No")
+                        }
+                    },
+                    backgroundColor = Color.White,
+                    contentColor = Color.Black
                 )
             }
 
