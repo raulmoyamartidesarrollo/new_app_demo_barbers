@@ -173,24 +173,28 @@ fun HomeClienteScreen(navController: NavHostController) {
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         if (citaCompleta?.estado == "pendiente") {
-                            Button(
-                                onClick = { showEditarDialog.value = true },
-                                colors = ButtonDefaults.buttonColors(backgroundColor = acento),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Text("Editar cita", color = Color.White)
+                                Button(
+                                    onClick = { showEditarDialog.value = true },
+                                    colors = ButtonDefaults.buttonColors(backgroundColor = acento),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("Editar", color = Color.White)
+                                }
+                                Button(
+                                    onClick = { showBorrarDialog.value = true },
+                                    colors = ButtonDefaults.buttonColors(backgroundColor = Color.Gray),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("Cancelar", color = Color.White)
+                                }
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(
-                                onClick = { showBorrarDialog.value = true },
-                                colors = ButtonDefaults.buttonColors(backgroundColor = Color.Gray),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Cancelar cita", color = Color.White)
-                            }
-                        } else {
+                        }else {
                             Button(
                                 onClick = { navController.navigate("pedir_cita") },
                                 colors = ButtonDefaults.buttonColors(backgroundColor = acento),

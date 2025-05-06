@@ -6,6 +6,7 @@ import com.github.jetbrains.rssreader.androidApp.models.Barberia
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
 import com.google.firebase.storage.FirebaseStorage
@@ -179,7 +180,13 @@ object FirebaseService {
             }
             .addOnFailureListener(onFailure)
     }
-
+    suspend fun getTelefonoNegocioDelCliente(): String? {
+        val user = Firebase.auth.currentUser ?: return null
+        val clienteSnap = Firebase.firestore.collection("clientes").document(user.uid).get().await()
+        val negocioId = clienteSnap.getString("idnegocio") ?: return null
+        val negocioSnap = Firebase.firestore.collection("negocios").document(negocioId).get().await()
+        return negocioSnap.getString("telefono")?.trim()
+    }
     fun crearReserva(
         negocioId: String,
         idPeluquero: String,

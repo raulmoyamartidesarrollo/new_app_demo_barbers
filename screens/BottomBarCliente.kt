@@ -5,12 +5,37 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.*
+import androidx.compose.material.AlertDialog
+import androidx.compose.material.FloatingActionButton
+import androidx.compose.material.FloatingActionButtonDefaults
+import androidx.compose.material.Icon
+import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -20,11 +45,18 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.github.jetbrains.rssreader.androidApp.FirebaseService
 
 @Composable
 fun BottomBarCliente(navController: NavHostController, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var showDialog by remember { mutableStateOf(false) }
+    var telefonoNegocio by remember { mutableStateOf<String?>(null) }
+
+    // Obtener el teléfono del negocio favorito del cliente
+    LaunchedEffect(Unit) {
+        telefonoNegocio = FirebaseService.getTelefonoNegocioDelCliente()
+    }
 
     val bordeColor = Color(0xFFFF6680)
     val fondoMenu = Color.White
@@ -37,16 +69,23 @@ fun BottomBarCliente(navController: NavHostController, modifier: Modifier = Modi
         AlertDialog(
             onDismissRequest = { showDialog = false },
             title = { Text("¿Llamar a la peluquería?") },
-            text = { Text("¿Deseas llamar a la peluquería Miguel Ángel al 964 010 203?") },
+            text = {
+                if (telefonoNegocio != null)
+                    Text("¿Deseas llamar a la peluquería al número $telefonoNegocio?")
+                else
+                    Text("No se pudo obtener el número de teléfono.")
+            },
             confirmButton = {
-                TextButton(onClick = {
-                    showDialog = false
-                    val intent = Intent(Intent.ACTION_DIAL).apply {
-                        data = Uri.parse("tel:964010203")
+                if (telefonoNegocio != null) {
+                    TextButton(onClick = {
+                        showDialog = false
+                        val intent = Intent(Intent.ACTION_DIAL).apply {
+                            data = Uri.parse("tel:$telefonoNegocio")
+                        }
+                        context.startActivity(intent)
+                    }) {
+                        Text("Sí")
                     }
-                    context.startActivity(intent)
-                }) {
-                    Text("Sí")
                 }
             },
             dismissButton = {
@@ -120,7 +159,7 @@ fun BottomBarCliente(navController: NavHostController, modifier: Modifier = Modi
             IconWithLabel(
                 icon = Icons.Default.Call,
                 label = "Llamar",
-                selected = false, // Nunca se marca como activa
+                selected = false,
                 colorActivo = colorActivo,
                 colorInactivo = colorInactivo
             ) {
