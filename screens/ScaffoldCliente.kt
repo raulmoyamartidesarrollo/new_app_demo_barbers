@@ -1,11 +1,11 @@
 package com.github.jetbrains.rssreader.androidApp.screens
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 
 @Composable
@@ -15,7 +15,9 @@ fun ScaffoldCliente(
 ) {
     Scaffold(
         bottomBar = {
-            BottomBarCliente(navController = navController)
+            Box(modifier = Modifier.navigationBarsPadding()) {
+                BottomBarCliente(navController = navController)
+            }
         },
         backgroundColor = Color.Transparent
     ) { paddingValues ->

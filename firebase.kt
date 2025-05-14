@@ -3,6 +3,7 @@ package com.github.jetbrains.rssreader.androidApp
 import android.net.Uri
 import android.util.Log
 import com.github.jetbrains.rssreader.androidApp.models.Barberia
+import com.github.jetbrains.rssreader.androidApp.utils.enviarNotificacionPushMultiple
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -10,6 +11,9 @@ import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
 import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.time.LocalDate
@@ -207,10 +211,38 @@ object FirebaseService {
             "estado" to estado
         )
 
-        firestore.collection("negocios").document(negocioId)
+        val db = Firebase.firestore
+
+        db.collection("negocios").document(negocioId)
             .collection("reservas")
             .add(reservaData)
-            .addOnSuccessListener { onSuccess() }
+            .addOnSuccessListener {
+                onSuccess()
+
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val tokenPeluquero = getTokenDelPeluquero(idPeluquero)
+                        val tokenCliente = getTokenDelCliente(idCliente)
+
+                        val tokens = listOfNotNull(tokenPeluquero, tokenCliente)
+
+                        if (tokens.isNotEmpty()) {
+                            val client = io.ktor.client.HttpClient()
+
+                            enviarNotificacionPushMultiple(
+                                client = client,
+                                tokens = tokens,
+                                titulo = "Nueva cita reservada",
+                                mensaje = "Tu cita fue reservada para el $fecha a las $hora"
+                            )
+
+                            client.close()
+                        }
+                    } catch (e: Exception) {
+                        Log.e("Notificación", "Error al enviar notificación: ${e.message}")
+                    }
+                }
+            }
             .addOnFailureListener(onFailure)
     }
 
@@ -985,6 +1017,25 @@ object FirebaseService {
             .addOnFailureListener { exception ->
                 onFailure(exception)
             }
+    }
+    suspend fun getTokenDelPeluquero(peluqueroId: String): String? {
+        return try {
+            val doc = Firebase.firestore.collection("usuarios").document(peluqueroId).get().await()
+            doc.getString("token")
+        } catch (e: Exception) {
+            Log.e("FirebaseService", "Error al obtener token del peluquero: ${e.message}")
+            null
+        }
+    }
+
+    suspend fun getTokenDelCliente(clienteId: String): String? {
+        return try {
+            val doc = Firebase.firestore.collection("clientes").document(clienteId).get().await()
+            doc.getString("token")
+        } catch (e: Exception) {
+            Log.e("FirebaseService", "Error al obtener token del cliente: ${e.message}")
+            null
+        }
     }
 
 

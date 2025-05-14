@@ -1,15 +1,42 @@
 package com.github.jetbrains.rssreader.androidApp.screens
 
 import android.util.Log
-import androidx.compose.foundation.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.*
+import androidx.compose.material.AlertDialog
+import androidx.compose.material.Button
+import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.CircularProgressIndicator
+import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
+import androidx.compose.material.OutlinedTextField
+import androidx.compose.material.Text
+import androidx.compose.material.TextButton
+import androidx.compose.material.TextFieldDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,7 +48,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.*
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -29,9 +58,17 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.github.jetbrains.rssreader.androidApp.R
-import com.google.firebase.auth.*
+import com.github.jetbrains.rssreader.androidApp.components.GoogleAuthUIClient
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import com.github.jetbrains.rssreader.androidApp.utils.guardarTokenEnFirestore
 
 @Composable
 fun LoginScreen(navController: NavHostController) {
@@ -45,6 +82,97 @@ fun LoginScreen(navController: NavHostController) {
     var isLoading by remember { mutableStateOf(false) }
     var showErrorDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
+
+    // Google Auth
+    val googleAuthUIClient = remember { GoogleAuthUIClient(context) }
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        Log.d("GOOGLE_SIGN_IN", "🔹 Resultado del intent recibido")
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val intent = result.data
+            Log.d("GOOGLE_SIGN_IN", "🔹 RESULT_OK recibido, intent: ${intent != null}")
+            CoroutineScope(Dispatchers.Main).launch {
+                if (intent != null) {
+                    Log.d("GOOGLE_SIGN_IN", "🔹 Procesando intent con GoogleAuthUIClient")
+                    val signInResult = googleAuthUIClient.signInWithIntent(intent)
+                    Log.d("GOOGLE_SIGN_IN", "🔹 Resultado signInWithIntent: ${signInResult.isSuccess}")
+                    if (signInResult.isSuccess) {
+                        val userId = Firebase.auth.currentUser?.uid
+                        val db = Firebase.firestore
+
+                        if (userId != null) {
+                            db.collection("usuarios").document(userId).get()
+                                .addOnSuccessListener { userDocument ->
+                                    if (!userDocument.exists()) {
+                                        Log.e("GOOGLE_SIGN_IN", "⚠️ Usuario no registrado en Firestore")
+                                        errorMessage = "No hay ninguna cuenta registrada con ese correo."
+                                        showErrorDialog = true
+                                        navController.navigate("register")
+                                        return@addOnSuccessListener
+                                    }
+
+                                    val rol = userDocument.getString("rol") ?: "cliente"
+
+                                    Log.d("GOOGLE_SIGN_IN", "✅ Rol detectado: $rol")
+                                    when (rol) {
+                                        "cliente" -> {
+                                            db.collection("clientes").document(userId).get()
+                                                .addOnSuccessListener { clientDoc ->
+                                                    val idNegocio = clientDoc.getString("idnegocio") ?: ""
+                                                    Log.d("GOOGLE_SIGN_IN", "idNegocio: $idNegocio")
+                                                    if (idNegocio.isEmpty()) {
+                                                        navController.navigate("inicio_usuario") {
+                                                            popUpTo(0) { inclusive = true }
+                                                            launchSingleTop = true
+                                                        }
+                                                    } else {
+                                                        navController.navigate("home_cliente") {
+                                                            popUpTo(0) { inclusive = true }
+                                                            launchSingleTop = true
+                                                        }
+                                                    }
+                                                }
+                                        }
+                                        "peluquero" -> {
+                                            navController.navigate("home_peluquero") {
+                                                popUpTo(0) { inclusive = true }
+                                                launchSingleTop = true
+                                            }
+                                        }
+                                        "superpeluquero" -> {
+                                            navController.navigate("home_admin") {
+                                                popUpTo(0) { inclusive = true }
+                                                launchSingleTop = true
+                                            }
+                                        }
+                                    }
+                                }
+                                .addOnFailureListener {
+                                    Log.e("GOOGLE_SIGN_IN", "❌ Error obteniendo usuario: ${it.message}")
+                                    errorMessage = "Error comprobando si el usuario está registrado."
+                                    showErrorDialog = true
+                                }
+                        } else {
+                            Log.e("GOOGLE_SIGN_IN", "❌ userId es null")
+                            errorMessage = "No se pudo obtener el ID del usuario de Google."
+                            showErrorDialog = true
+                        }
+                    } else {
+                        Log.e("GOOGLE_SIGN_IN", "❌ signInWithIntent falló: ${signInResult.exceptionOrNull()?.message}")
+                        errorMessage = "Error al iniciar sesión con Google."
+                        showErrorDialog = true
+                    }
+                } else {
+                    Log.e("GOOGLE_SIGN_IN", "❌ Intent recibido es null.")
+                    errorMessage = "No se recibió respuesta de Google."
+                    showErrorDialog = true
+                }
+            }
+        } else {
+            Log.e("GOOGLE_SIGN_IN", "❌ resultCode != RESULT_OK: ${result.resultCode}")
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -154,31 +282,23 @@ fun LoginScreen(navController: NavHostController) {
                                     db.collection("usuarios").document(userId).get()
                                         .addOnSuccessListener { userDocument ->
                                             val rol = userDocument.getString("rol") ?: "cliente"
-
+                                            guardarTokenEnFirestore(userId, rol)
                                             when (rol) {
                                                 "cliente" -> {
-                                                    // ✅ Ahora buscamos el idNegocio en clientes
                                                     db.collection("clientes").document(userId).get()
                                                         .addOnSuccessListener { clientDoc ->
                                                             val idNegocio = clientDoc.getString("idnegocio") ?: ""
                                                             if (idNegocio.isEmpty()) {
-                                                                // ➡️ No tiene barbería favorita ➔ ir a seleccionar barbería
                                                                 navController.navigate("inicio_usuario") {
                                                                     popUpTo(0) { inclusive = true }
                                                                     launchSingleTop = true
                                                                 }
                                                             } else {
-                                                                // ➡️ Ya tiene barbería ➔ ir a home_cliente
                                                                 navController.navigate("home_cliente") {
                                                                     popUpTo(0) { inclusive = true }
                                                                     launchSingleTop = true
                                                                 }
                                                             }
-                                                        }
-                                                        .addOnFailureListener { e ->
-                                                            Log.e("LOGIN_FIRESTORE", "Error leyendo cliente: ${e.message}")
-                                                            errorMessage = "Error verificando cliente."
-                                                            showErrorDialog = true
                                                         }
                                                 }
                                                 "peluquero" -> {
@@ -193,17 +313,10 @@ fun LoginScreen(navController: NavHostController) {
                                                         launchSingleTop = true
                                                     }
                                                 }
-                                                else -> {
-                                                    navController.navigate("start") {
-                                                        popUpTo(0) { inclusive = true }
-                                                        launchSingleTop = true
-                                                    }
-                                                }
                                             }
                                         }
                                         .addOnFailureListener { e ->
-                                            Log.e("LOGIN_FIRESTORE", "Error leyendo usuario: ${e.message}")
-                                            errorMessage = "Error verificando usuario."
+                                            errorMessage = "Error verificando usuario: ${e.message}"
                                             showErrorDialog = true
                                         }
                                 } else {
@@ -215,10 +328,7 @@ fun LoginScreen(navController: NavHostController) {
                                 errorMessage = when (exception) {
                                     is FirebaseAuthInvalidUserException -> "Usuario no registrado en el sistema."
                                     is FirebaseAuthInvalidCredentialsException -> "Contraseña incorrecta."
-                                    else -> {
-                                        Log.e("LOGIN_ERROR", "Error al iniciar sesión: ${exception?.javaClass?.name} - ${exception?.message}")
-                                        "Error al iniciar sesión. Intenta de nuevo."
-                                    }
+                                    else -> "Error al iniciar sesión. Intenta de nuevo."
                                 }
                                 showErrorDialog = true
                             }
@@ -246,7 +356,22 @@ fun LoginScreen(navController: NavHostController) {
             Spacer(modifier = Modifier.height(12.dp))
 
             Button(
-                onClick = { /* TODO: Google Sign In */ },
+                onClick = {
+                    focusManager.clearFocus()
+                    CoroutineScope(Dispatchers.Main).launch {
+                        googleAuthUIClient.signOut()
+                        Log.d("GOOGLE_SIGN_IN", "🔄 Cerrando sesión antes del login con Google")
+                        val intent = googleAuthUIClient.signIn()
+                        if (intent == null) {
+                            Log.e("GOOGLE_SIGN_IN", "Intent es null. Revisa el Client ID de Firebase o la config One Tap.")
+                            errorMessage = "No se pudo iniciar sesión con Google. Intenta más tarde."
+                            showErrorDialog = true
+                        } else {
+                            Log.d("GOOGLE_SIGN_IN", "Lanzando Intent de Google SignIn.")
+                            launcher.launch(intent)
+                        }
+                    }
+                },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 colors = ButtonDefaults.buttonColors(
                     backgroundColor = Color.White,
