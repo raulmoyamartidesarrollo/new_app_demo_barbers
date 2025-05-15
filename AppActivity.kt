@@ -13,14 +13,26 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.messaging.FirebaseMessaging
 
 class AppActivity : ComponentActivity() {
+
+    companion object {
+        var pendingNotification: Pair<String, String>? = null
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 👇 Guarda los datos de la notificación si llegan desde intent
+        val title = intent.getStringExtra("notif_title")
+        val body = intent.getStringExtra("notif_body")
+        if (!title.isNullOrEmpty() && !body.isNullOrEmpty()) {
+            pendingNotification = title to body
+        }
 
         // ✅ Crear canal de notificaciones si API >= 26
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                "mi_canal_notificaciones", // ID del canal (usa el mismo en MyFirebaseMessagingService)
-                "Notificaciones de reservas", // Nombre visible
+                "mi_canal_notificaciones", // ID del canal
+                "Notificaciones de reservas",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Reservas creadas o modificadas"
@@ -66,7 +78,7 @@ class AppActivity : ComponentActivity() {
             }
         }
 
-        // UI
+        // 👇 Lanzar UI
         setContent {
             PeluqueriaAppTheme {
                 val navController = rememberNavController()

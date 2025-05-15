@@ -3,6 +3,7 @@ package com.github.jetbrains.rssreader.androidApp
 import android.net.Uri
 import android.util.Log
 import com.github.jetbrains.rssreader.androidApp.models.Barberia
+import com.github.jetbrains.rssreader.androidApp.utils.createHttpClient
 import com.github.jetbrains.rssreader.androidApp.utils.enviarNotificacionPushMultiple
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
@@ -227,7 +228,7 @@ object FirebaseService {
                         val tokens = listOfNotNull(tokenPeluquero, tokenCliente)
 
                         if (tokens.isNotEmpty()) {
-                            val client = io.ktor.client.HttpClient()
+                            val client = createHttpClient()
 
                             enviarNotificacionPushMultiple(
                                 client = client,
@@ -312,13 +313,51 @@ object FirebaseService {
         onFailure: (Exception) -> Unit
     ) {
         val db = Firebase.firestore
-        db.collection("negocios")
+        val reservaRef = db.collection("negocios")
             .document(negocioId)
             .collection("reservas")
             .document(reservaId)
-            .delete()
-            .addOnSuccessListener { onSuccess() }
-            .addOnFailureListener { e -> onFailure(e) }
+
+        reservaRef.get()
+            .addOnSuccessListener { doc ->
+                if (!doc.exists()) {
+                    return@addOnSuccessListener onFailure(Exception("La reserva no existe"))
+                }
+
+                val idCliente = doc.getString("idCliente")
+                val idPeluquero = doc.getString("idPeluquero")
+                val fecha = doc.getString("fecha")
+                val hora = doc.getString("hora")
+
+                reservaRef.delete()
+                    .addOnSuccessListener {
+                        onSuccess()
+
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                val tokenCliente = idCliente?.let { getTokenDelCliente(it) }
+                                val tokenPeluquero = idPeluquero?.let { getTokenDelPeluquero(it) }
+
+                                val tokens = listOfNotNull(tokenCliente, tokenPeluquero)
+
+                                if (tokens.isNotEmpty()) {
+                                    val client = createHttpClient()
+                                    enviarNotificacionPushMultiple(
+                                        client = client,
+                                        tokens = tokens,
+                                        titulo = "Cita cancelada",
+                                        mensaje = "Tu cita del $fecha a las $hora ha sido cancelada."
+                                    )
+                                    client.close()
+                                }
+                            } catch (e: Exception) {
+                                Log.e("Notificación", "Error al enviar notificación de cancelación: ${e.message}")
+                            }
+                        }
+                    }
+                    .addOnFailureListener(onFailure)
+            }
+            .addOnFailureListener(onFailure)
     }
 
 
@@ -664,12 +703,49 @@ object FirebaseService {
         onFailure: (Exception) -> Unit
     ) {
         val db = Firebase.firestore
-        db.collection("negocios")
+        val reservaRef = db.collection("negocios")
             .document(negocioId)
             .collection("reservas")
             .document(reservaId)
-            .update(datosActualizados)
-            .addOnSuccessListener { onSuccess() }
+
+        reservaRef.update(datosActualizados)
+            .addOnSuccessListener {
+                onSuccess()
+
+                // 🔄 Releer los datos desde Firestore para asegurar que tenemos idCliente, idPeluquero, fecha y hora correctos
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val doc = reservaRef.get().await()
+
+                        val idCliente = doc.getString("idCliente")
+                        val idPeluquero = doc.getString("idPeluquero")
+                        val fecha = doc.getString("fecha")
+                        val hora = doc.getString("hora")
+
+                        Log.d("Notificación", "Reserva editada - Cliente: $idCliente, Peluquero: $idPeluquero")
+
+                        val tokens = listOfNotNull(
+                            idCliente?.let { getTokenDelCliente(it) },
+                            idPeluquero?.let { getTokenDelPeluquero(it) }
+                        )
+
+                        if (tokens.isNotEmpty()) {
+                            val client = createHttpClient()
+                            enviarNotificacionPushMultiple(
+                                client,
+                                tokens,
+                                titulo = "Cita actualizada",
+                                mensaje = "Tu cita ha sido modificada para el $fecha a las $hora"
+                            )
+                            client.close()
+                        } else {
+                            Log.e("Notificación", "No se encontraron tokens válidos tras edición.")
+                        }
+                    } catch (e: Exception) {
+                        Log.e("Notificación", "Error al enviar notificación tras editar: ${e.message}")
+                    }
+                }
+            }
             .addOnFailureListener { onFailure(it) }
     }
     fun actualizarReservaCliente(

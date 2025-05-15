@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
+import com.github.jetbrains.rssreader.androidApp.AppActivity
 import com.github.jetbrains.rssreader.androidApp.Cita
 import com.github.jetbrains.rssreader.androidApp.FirebaseService
 import com.github.jetbrains.rssreader.androidApp.HorarioDia
@@ -89,6 +90,31 @@ fun HomeClienteScreen(navController: NavHostController) {
     val botonsecundario = Color(0xFFFF6680)
 
     val showEditarDialog = remember { mutableStateOf(false) }
+    var mostrarNotificacion by remember { mutableStateOf(false) }
+    var tituloNotificacion by remember { mutableStateOf("") }
+    var mensajeNotificacion by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        AppActivity.pendingNotification?.let { (t, m) ->
+            tituloNotificacion = t
+            mensajeNotificacion = m
+            mostrarNotificacion = true
+            AppActivity.pendingNotification = null
+        }
+    }
+
+    if (mostrarNotificacion) {
+        AlertDialog(
+            onDismissRequest = { mostrarNotificacion = false },
+            title = { Text(tituloNotificacion) },
+            text = { Text(mensajeNotificacion) },
+            confirmButton = {
+                TextButton(onClick = { mostrarNotificacion = false }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
     val peluqueros = remember { mutableStateOf<List<Peluquero>>(emptyList()) }
     val horario = remember { mutableStateOf<Map<String, HorarioDia>>(emptyMap()) }
     val servicios = remember { mutableStateOf<List<Map<String, Any>>>(emptyList()) }

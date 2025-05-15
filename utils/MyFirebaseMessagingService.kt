@@ -1,5 +1,6 @@
 package com.github.jetbrains.rssreader.androidApp.utils
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -7,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.media.RingtoneManager
 import android.os.Build
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.github.jetbrains.rssreader.androidApp.AppActivity
@@ -29,8 +31,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         super.onMessageReceived(remoteMessage)
 
 
-        val title = remoteMessage.notification?.title ?: "Nueva notificación"
-        val body = remoteMessage.notification?.body ?: "Tienes una nueva cita o actualización"
+        val title = remoteMessage.data["title"] ?: "Nueva notificación"
+        val body = remoteMessage.data["body"] ?: "Tienes una nueva cita o actualización"
 
         showNotification(title, body)
     }
@@ -41,6 +43,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
         val intent = Intent(this, AppActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            putExtra("notif_title", title) // ✅ Añadido
+            putExtra("notif_body", message)
         }
 
         val pendingIntent = PendingIntent.getActivity(
@@ -51,11 +55,12 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
 
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.drawable.ic_notification) // Asegúrate de tener un icono
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(message)
-            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH) // 👈 clave
             .setSound(soundUri)
+            .setAutoCancel(true)
             .setContentIntent(pendingIntent)
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -64,12 +69,25 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
-                "Notificaciones generales",
-                NotificationManager.IMPORTANCE_DEFAULT
-            )
+                "Notificaciones importantes",
+                NotificationManager.IMPORTANCE_HIGH // 👈 esto es clave
+            ).apply {
+                enableLights(true)
+                enableVibration(true)
+                setSound(
+                    RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+                    Notification.AUDIO_ATTRIBUTES_DEFAULT
+                )
+            }
             notificationManager.createNotificationChannel(channel)
         }
 
         notificationManager.notify(notificationId, notificationBuilder.build())
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val wakeLock = powerManager.newWakeLock(
+            PowerManager.FULL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE,
+            "app:MyWakeLockTag"
+        )
+        wakeLock.acquire(3000) // 3 segundos para despertar la pantalla
     }
 }

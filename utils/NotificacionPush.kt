@@ -1,5 +1,6 @@
 package com.github.jetbrains.rssreader.androidApp.utils
 
+import com.github.jetbrains.rssreader.core.NotificacionMultiplePush
 import io.ktor.client.HttpClient
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -8,14 +9,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import kotlinx.serialization.Serializable
-
-@Serializable
-data class NotificacionMultiplePush(
-    val tokens: List<String>,
-    val title: String,
-    val body: String
-)
+import kotlinx.serialization.json.Json
 
 suspend fun enviarNotificacionPushMultiple(
     client: HttpClient,
@@ -32,7 +26,8 @@ suspend fun enviarNotificacionPushMultiple(
     try {
         val response: HttpResponse = client.post("https://us-central1-fir-app-barbers.cloudfunctions.net/sendPushNotification") {
             contentType(ContentType.Application.Json)
-            setBody(payload)
+            println("📦 Payload que se va a enviar: ${Json.encodeToString(NotificacionMultiplePush.serializer(), payload)}")
+            setBody(payload) // ✅ CAMBIO AQUÍ
         }
 
         if (response.status != HttpStatusCode.OK) {
