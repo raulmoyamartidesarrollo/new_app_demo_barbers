@@ -1,12 +1,34 @@
 package com.github.jetbrains.rssreader.androidApp.screens
 
+//noinspection UsingMaterialAndMaterial3Libraries
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
-//noinspection UsingMaterialAndMaterial3Libraries
-import androidx.compose.material.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.material.Button
+import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.OutlinedTextField
+import androidx.compose.material.Scaffold
+import androidx.compose.material.SnackbarHost
+import androidx.compose.material.SnackbarHostState
+import androidx.compose.material.Text
+import androidx.compose.material.TextFieldDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -20,7 +42,7 @@ import com.github.jetbrains.rssreader.androidApp.FirebaseService
 import kotlinx.coroutines.launch
 
 @Composable
-fun MiCuentaAdminScreen(navController: NavHostController) {
+fun MiCuentaAdminScreen(navController: NavHostController, modoPeluquero: Boolean = false){
     val user = FirebaseService.getCurrentUser()
     var nombre by remember { mutableStateOf("") }
     var apellidos by remember { mutableStateOf("") }
@@ -31,6 +53,19 @@ fun MiCuentaAdminScreen(navController: NavHostController) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
+
+
+    var rol by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        user?.uid?.let { uid ->
+            FirebaseService.getUserRole(
+                uid,
+                onSuccess = { fetchedRol -> rol = fetchedRol },
+                onFailure = { rol = null }
+            )
+        }
+    }
 
     LaunchedEffect(Unit) {
         user?.uid?.let { uid ->
@@ -163,8 +198,8 @@ fun MiCuentaAdminScreen(navController: NavHostController) {
 
             Button(
                 onClick = {
-                    navController.navigate("home_admin") {
-                        popUpTo("mi_cuenta") { inclusive = true }
+                    navController.navigate("home_admin?modoPeluquero=$modoPeluquero") {
+                        popUpTo("admin_mi_cuenta_Screen") { inclusive = true }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),

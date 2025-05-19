@@ -1,6 +1,5 @@
 package com.github.jetbrains.rssreader.androidApp.screens
 
-import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -59,6 +58,7 @@ import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.github.jetbrains.rssreader.androidApp.R
 import com.github.jetbrains.rssreader.androidApp.components.GoogleAuthUIClient
+import com.github.jetbrains.rssreader.androidApp.utils.guardarTokenEnFirestore
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
@@ -68,7 +68,6 @@ import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import com.github.jetbrains.rssreader.androidApp.utils.guardarTokenEnFirestore
 
 @Composable
 fun LoginScreen(navController: NavHostController) {
@@ -88,15 +87,11 @@ fun LoginScreen(navController: NavHostController) {
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
-        Log.d("GOOGLE_SIGN_IN", "🔹 Resultado del intent recibido")
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             val intent = result.data
-            Log.d("GOOGLE_SIGN_IN", "🔹 RESULT_OK recibido, intent: ${intent != null}")
             CoroutineScope(Dispatchers.Main).launch {
                 if (intent != null) {
-                    Log.d("GOOGLE_SIGN_IN", "🔹 Procesando intent con GoogleAuthUIClient")
                     val signInResult = googleAuthUIClient.signInWithIntent(intent)
-                    Log.d("GOOGLE_SIGN_IN", "🔹 Resultado signInWithIntent: ${signInResult.isSuccess}")
                     if (signInResult.isSuccess) {
                         val userId = Firebase.auth.currentUser?.uid
                         val db = Firebase.firestore
@@ -105,7 +100,6 @@ fun LoginScreen(navController: NavHostController) {
                             db.collection("usuarios").document(userId).get()
                                 .addOnSuccessListener { userDocument ->
                                     if (!userDocument.exists()) {
-                                        Log.e("GOOGLE_SIGN_IN", "⚠️ Usuario no registrado en Firestore")
                                         errorMessage = "No hay ninguna cuenta registrada con ese correo."
                                         showErrorDialog = true
                                         navController.navigate("register")
@@ -113,14 +107,12 @@ fun LoginScreen(navController: NavHostController) {
                                     }
 
                                     val rol = userDocument.getString("rol") ?: "cliente"
-
-                                    Log.d("GOOGLE_SIGN_IN", "✅ Rol detectado: $rol")
+                                    guardarTokenEnFirestore(userId, rol)
                                     when (rol) {
                                         "cliente" -> {
                                             db.collection("clientes").document(userId).get()
                                                 .addOnSuccessListener { clientDoc ->
                                                     val idNegocio = clientDoc.getString("idnegocio") ?: ""
-                                                    Log.d("GOOGLE_SIGN_IN", "idNegocio: $idNegocio")
                                                     if (idNegocio.isEmpty()) {
                                                         navController.navigate("inicio_usuario") {
                                                             popUpTo(0) { inclusive = true }
@@ -149,28 +141,22 @@ fun LoginScreen(navController: NavHostController) {
                                     }
                                 }
                                 .addOnFailureListener {
-                                    Log.e("GOOGLE_SIGN_IN", "❌ Error obteniendo usuario: ${it.message}")
                                     errorMessage = "Error comprobando si el usuario está registrado."
                                     showErrorDialog = true
                                 }
                         } else {
-                            Log.e("GOOGLE_SIGN_IN", "❌ userId es null")
                             errorMessage = "No se pudo obtener el ID del usuario de Google."
                             showErrorDialog = true
                         }
                     } else {
-                        Log.e("GOOGLE_SIGN_IN", "❌ signInWithIntent falló: ${signInResult.exceptionOrNull()?.message}")
                         errorMessage = "Error al iniciar sesión con Google."
                         showErrorDialog = true
                     }
                 } else {
-                    Log.e("GOOGLE_SIGN_IN", "❌ Intent recibido es null.")
                     errorMessage = "No se recibió respuesta de Google."
                     showErrorDialog = true
                 }
             }
-        } else {
-            Log.e("GOOGLE_SIGN_IN", "❌ resultCode != RESULT_OK: ${result.resultCode}")
         }
     }
 
@@ -197,10 +183,7 @@ fun LoginScreen(navController: NavHostController) {
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = if (tipoUsuarioGlobal == "empresa")
-                    "Inicia sesión para gestionar tu negocio"
-                else
-                    "Inicia sesión para poder reservar tu cita de forma fácil y cómoda",
+                text = "Inicia sesión para continuar",
                 color = Color(0xFFB0D4E6),
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,
@@ -302,13 +285,13 @@ fun LoginScreen(navController: NavHostController) {
                                                         }
                                                 }
                                                 "peluquero" -> {
-                                                    navController.navigate("home_peluquero") {
+                                                    navController.navigate("home_admin?modoPeluquero=true") {
                                                         popUpTo(0) { inclusive = true }
                                                         launchSingleTop = true
                                                     }
                                                 }
                                                 "superpeluquero" -> {
-                                                    navController.navigate("home_admin") {
+                                                    navController.navigate("home_admin?modoPeluquero=false") {
                                                         popUpTo(0) { inclusive = true }
                                                         launchSingleTop = true
                                                     }
@@ -360,14 +343,11 @@ fun LoginScreen(navController: NavHostController) {
                     focusManager.clearFocus()
                     CoroutineScope(Dispatchers.Main).launch {
                         googleAuthUIClient.signOut()
-                        Log.d("GOOGLE_SIGN_IN", "🔄 Cerrando sesión antes del login con Google")
                         val intent = googleAuthUIClient.signIn()
                         if (intent == null) {
-                            Log.e("GOOGLE_SIGN_IN", "Intent es null. Revisa el Client ID de Firebase o la config One Tap.")
                             errorMessage = "No se pudo iniciar sesión con Google. Intenta más tarde."
                             showErrorDialog = true
                         } else {
-                            Log.d("GOOGLE_SIGN_IN", "Lanzando Intent de Google SignIn.")
                             launcher.launch(intent)
                         }
                     }

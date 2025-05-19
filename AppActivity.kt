@@ -20,7 +20,9 @@ class AppActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        FirebaseFirestore.getInstance().clearPersistence().addOnCompleteListener {
+            Log.d("FirestoreRDM", "🔥 Caché local limpiada correctamente")
+        }
         // 👇 Guarda los datos de la notificación si llegan desde intent
         val title = intent.getStringExtra("notif_title")
         val body = intent.getStringExtra("notif_body")

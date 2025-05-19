@@ -50,13 +50,13 @@ import androidx.navigation.NavHostController
 import com.github.jetbrains.rssreader.androidApp.FirebaseService
 
 @Composable
-fun HomeAdminScreen(navController: NavHostController) {
+fun HomeAdminScreen(navController: NavHostController, modoPeluquero: Boolean = false) {
     val showPermissionRequested = remember { mutableStateOf(false) }
     val showLogoutDialog = remember { mutableStateOf(false) }
     val user = FirebaseService.getCurrentUser()
     var userName by remember { mutableStateOf("") }
 
-    // Solicitar permiso de notificaciones si aplica (Android 13+)
+    // Pedir permiso de notificaciones (Android 13+)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !showPermissionRequested.value) {
         val permissionLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission(),
@@ -67,12 +67,13 @@ fun HomeAdminScreen(navController: NavHostController) {
         }
     }
 
-    // Cargar nombre del usuario
+    // Cargar nombre de usuario
     LaunchedEffect(Unit) {
         user?.uid?.let { uid ->
-            FirebaseService.getUserName(uid,
+            FirebaseService.getUserName(
+                uid,
                 onSuccess = { name -> userName = name },
-                onFailure = { userName = "Administrador" }
+                onFailure = { userName = "Usuario" }
             )
         }
     }
@@ -88,7 +89,7 @@ fun HomeAdminScreen(navController: NavHostController) {
                 backgroundColor = Color(0xFF1C2D3C),
                 contentColor = Color.White,
                 elevation = 4.dp,
-                title = { Text("Hola, ${userName.ifEmpty { "Admin" }}") },
+                title = { Text("Hola, ${userName.ifEmpty { "Usuario" }}") },
                 actions = {
                     IconButton(onClick = { showLogoutDialog.value = true }) {
                         Icon(Icons.Default.ExitToApp, contentDescription = "Cerrar sesión", tint = Color.White)
@@ -96,41 +97,48 @@ fun HomeAdminScreen(navController: NavHostController) {
                 }
             )
         }
-    ) {
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(it)
+                .padding(innerPadding)
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            CardAdminAcceso(
-                icon = Icons.Default.Store,
-                text = "Gestionar negocio"
-            ) { navController.navigate("gestionar_negocio") }
+            // Secciones exclusivas del administrador
+            if (!modoPeluquero) {
+                CardAdminAcceso(
+                    icon = Icons.Default.Store,
+                    text = "Gestionar negocio"
+                ) { navController.navigate("gestionar_negocio") }
 
-            CardAdminAcceso(
-                icon = Icons.Default.ContentCut,
-                text = "Gestionar servicios"
-            ) { navController.navigate("pantalla_gestion_servicios") }
+                CardAdminAcceso(
+                    icon = Icons.Default.ContentCut,
+                    text = "Gestionar servicios"
+                ) { navController.navigate("pantalla_gestion_servicios") }
 
+                CardAdminAcceso(
+                    icon = Icons.Default.Groups,
+                    text = "Gestionar trabajadores"
+                ) { navController.navigate("pantalla_gestion_trabajadores") }
+            }
+
+            // Secciones comunes
             CardAdminAcceso(
                 icon = Icons.Default.Event,
                 text = "Ver citas"
-            ) { navController.navigate("pantalla_ver_citas") }
-
-            CardAdminAcceso(
-                icon = Icons.Default.Groups,
-                text = "Gestionar trabajadores"
-            ) { navController.navigate("pantalla_gestion_trabajadores") }
+            ) { navController.navigate("pantalla_ver_citas?modoPeluquero=$modoPeluquero") }
 
             CardAdminAcceso(
                 icon = Icons.Default.AccountCircle,
                 text = "Mi cuenta"
-            ) { navController.navigate("mi_cuenta_Admin") }
+            ) {
+                navController.navigate("admin_mi_cuenta_Screen?modoPeluquero=$modoPeluquero")
+            }
         }
 
+        // Diálogo de logout
         if (showLogoutDialog.value) {
             AlertDialog(
                 onDismissRequest = { showLogoutDialog.value = false },
@@ -155,12 +163,6 @@ fun HomeAdminScreen(navController: NavHostController) {
                 contentColor = Color.Black
             )
         }
-
-       /*Button(onClick = {
-            navController.navigate("test_notif")
-        }) {
-            Text("Test Notificación Push")
-        }*/
     }
 }
 

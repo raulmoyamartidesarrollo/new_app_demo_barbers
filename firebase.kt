@@ -10,7 +10,9 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.firestore
+import com.google.firebase.messaging.messaging
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +24,10 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Date
+import kotlin.collections.component1
+import kotlin.collections.component2
+import kotlin.collections.set
+
 
 fun calcularHorasDisponiblesSimple(
     horarioDia: HorarioDia?,
@@ -288,23 +294,73 @@ object FirebaseService {
         FirebaseAuth.getInstance().createUserWithEmailAndPassword(email, password)
             .addOnSuccessListener { result ->
                 val uid = result.user?.uid ?: return@addOnSuccessListener onFailure(Exception("UID no encontrado"))
-                val data = hashMapOf(
+
+                val dataNegocio = hashMapOf(
                     "nombre" to nombre,
                     "apellidos" to apellidos,
                     "email" to email,
                     "rol" to "peluquero",
-                    "fotoPerfil" to ""
+                    "fotoPerfil" to "",
+                    "token" to ""
                 )
-                FirebaseFirestore.getInstance()
-                    .collection("negocios")
+
+                val dataUsuario = hashMapOf(
+                    "email" to email,
+                    "rol" to "peluquero",
+                    "negocioId" to negocioId
+                )
+
+                val db = FirebaseFirestore.getInstance()
+
+                db.collection("negocios")
                     .document(negocioId)
                     .collection("peluqueros")
                     .document(uid)
-                    .set(data)
-                    .addOnSuccessListener { onSuccess() }
+                    .set(dataNegocio)
+                    .addOnSuccessListener {
+                        db.collection("usuarios")
+                            .document(uid)
+                            .set(dataUsuario)
+                            .addOnSuccessListener { onSuccess() }
+                            .addOnFailureListener(onFailure)
+                    }
                     .addOnFailureListener(onFailure)
             }
             .addOnFailureListener(onFailure)
+    }
+
+    fun actualizarPeluquero(
+        negocioId: String,
+        peluqueroId: String,
+        nombre: String,
+        email: String,
+        nuevaPassword: String?,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        val firestore = FirebaseFirestore.getInstance()
+        val peluqueroRef = firestore
+            .collection("negocios")
+            .document(negocioId)
+            .collection("peluqueros")
+            .document(peluqueroId)
+
+        val camposActualizados = mutableMapOf<String, Any>()
+
+        if (nombre.isNotBlank()) camposActualizados["nombre"] = nombre
+        if (email.isNotBlank()) camposActualizados["email"] = email
+
+        peluqueroRef.update(camposActualizados)
+            .addOnSuccessListener {
+                if (!nuevaPassword.isNullOrBlank()) {
+                    FirebaseAuth.getInstance().currentUser?.updatePassword(nuevaPassword)
+                        ?.addOnSuccessListener { onSuccess() }
+                        ?.addOnFailureListener { onFailure(it) }
+                } else {
+                    onSuccess()
+                }
+            }
+            .addOnFailureListener { onFailure(it) }
     }
 
     fun eliminarReserva(
@@ -1125,6 +1181,216 @@ object FirebaseService {
             storageRef.downloadUrl.await().toString()
         }
     }
+    fun actualizarTokenUsuario(userId: String, token: String) {
+        val firestore = FirebaseFirestore.getInstance()
+        firestore.collection("usuarios").document(userId)
+            .update("token", token)
+    }
+    suspend fun eliminarCitasDePeluquero(negocioId: String, peluqueroId: String, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
+        try {
+            val db = FirebaseFirestore.getInstance()
+            val reservasRef = db.collection("negocios").document(negocioId).collection("reservas")
+            val snapshot = reservasRef.whereEqualTo("idPeluquero", peluqueroId).get().await()
 
+            for (doc in snapshot.documents) {
+                doc.reference.delete().await()
+            }
+
+            onSuccess()
+        } catch (e: Exception) {
+            onFailure(e)
+        }
+    }
+
+    suspend fun reasignarCitasDelPeluquero(
+        negocioId: String,
+        antiguoPeluqueroId: String,
+        nuevoPeluqueroId: String,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        try {
+            val db = FirebaseFirestore.getInstance()
+            val reservasRef = db.collection("negocios").document(negocioId).collection("reservas")
+            val snapshot = reservasRef.whereEqualTo("idPeluquero", antiguoPeluqueroId).get().await()
+
+            for (doc in snapshot.documents) {
+                doc.reference.update("idPeluquero", nuevoPeluqueroId).await()
+            }
+
+            onSuccess()
+        } catch (e: Exception) {
+            onFailure(e)
+        }
+    }
+
+    suspend fun eliminarPeluquero(negocioId: String, peluqueroId: String, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
+        try {
+            val db = FirebaseFirestore.getInstance()
+            val ref = db.collection("negocios").document(negocioId)
+                .collection("peluqueros").document(peluqueroId)
+            ref.delete().await()
+            onSuccess()
+        } catch (e: Exception) {
+            onFailure(e)
+        }
+    }
+    fun eliminarPeluqueroYReservas(
+        negocioId: String,
+        peluqueroId: String,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        val db = FirebaseFirestore.getInstance()
+        val reservasRef = db.collection("negocios").document(negocioId).collection("reservas")
+
+        reservasRef.whereEqualTo("idPeluquero", peluqueroId)
+            .get()
+            .addOnSuccessListener { snapshot ->
+                val batch = db.batch()
+                snapshot.documents.forEach { batch.delete(it.reference) }
+
+                db.collection("negocios").document(negocioId)
+                    .collection("peluqueros").document(peluqueroId).delete()
+                    .addOnSuccessListener { onSuccess() }
+                    .addOnFailureListener { onFailure(it) }
+            }
+            .addOnFailureListener { onFailure(it) }
+    }
+
+    fun reasignarCitasYEliminarPeluquero(
+        negocioId: String,
+        peluqueroIdAntiguo: String,
+        nuevoPeluqueroId: String,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        val db = FirebaseFirestore.getInstance()
+        val reservasRef = db.collection("negocios").document(negocioId).collection("reservas")
+
+        reservasRef.whereEqualTo("idPeluquero", peluqueroIdAntiguo)
+            .get()
+            .addOnSuccessListener { snapshot ->
+                val batch = db.batch()
+                snapshot.documents.forEach {
+                    batch.update(it.reference, "idPeluquero", nuevoPeluqueroId)
+                }
+
+                db.collection("negocios").document(negocioId)
+                    .collection("peluqueros").document(peluqueroIdAntiguo).delete()
+                    .addOnSuccessListener {
+                        batch.commit()
+                            .addOnSuccessListener { onSuccess() }
+                            .addOnFailureListener { onFailure(it) }
+                    }
+                    .addOnFailureListener { onFailure(it) }
+            }
+            .addOnFailureListener { onFailure(it) }
+    }
+
+    fun getPeluqueroPorId(negocioId: String, peluqueroId: String, onResult: (Peluquero?) -> Unit) {
+        val db = Firebase.firestore
+        db.collection("negocios")
+            .document(negocioId)
+            .collection("peluqueros")
+            .document(peluqueroId)
+            .get()
+            .addOnSuccessListener { doc ->
+                if (doc.exists()) {
+                    val peluquero = Peluquero(
+                        id = doc.id,
+                        nombre = doc.getString("nombre") ?: "",
+                        apellidos = doc.getString("apellidos") ?: ""
+                    )
+                    onResult(peluquero)
+                } else {
+                    onResult(null)
+                }
+            }
+            .addOnFailureListener {
+                onResult(null)
+            }
+    }
+
+    fun guardarTokenEnFirestore(userId: String, rol: String) {
+        Log.d("RAUL", "🚀 Inicio guardarTokenEnFirestore para $userId con rol $rol")
+
+        Firebase.messaging.token
+            .addOnSuccessListener { token ->
+                Log.d("RAUL", "🔑 Token FCM obtenido: $token")
+
+                val db = Firebase.firestore
+
+                // 1. Guardar en `usuarios`
+                db.collection("usuarios").document(userId)
+                    .update("token", token)
+                    .addOnSuccessListener {
+                        Log.d("TOKEN", "✅ Token actualizado en colección usuarios")
+                    }
+                    .addOnFailureListener {
+                        Log.e("TOKEN", "❌ Error al actualizar token en usuarios: ${it.message}")
+                    }
+
+                // 2. Si es peluquero o superpeluquero, actualizar también en `peluqueros`
+                if (rol == "peluquero" || rol == "superpeluquero") {
+                    Log.d("TOKEN", "🧩 Usuario es peluquero/superpeluquero, buscando negocioId...")
+
+                    db.collection("usuarios").document(userId).get()
+                        .addOnSuccessListener { userDoc ->
+                            val negocioId = userDoc.getString("negocioId")
+                            Log.d("TOKEN", "🏢 negocioId obtenido: $negocioId")
+
+                            if (!negocioId.isNullOrEmpty()) {
+                                val ref = db.collection("negocios")
+                                    .document(negocioId)
+                                    .collection("peluqueros")
+                                    .document(userId)
+
+                                ref.get()
+                                    .addOnSuccessListener { peluqueroDoc ->
+                                        if (peluqueroDoc.exists()) {
+                                            Log.d("TOKEN", "🧾 Documento de peluquero existe, actualizando token...")
+                                            ref.set(mapOf("token" to token), SetOptions.merge())
+                                                .addOnSuccessListener {
+                                                    Log.d("TOKEN", "✅ Token actualizado en colección peluqueros")
+                                                }
+                                                .addOnFailureListener {
+                                                    Log.e("TOKEN", "❌ Error actualizando token en peluqueros: ${it.message}")
+                                                }
+                                        } else {
+                                            Log.d("TOKEN", "📄 Documento no existe, creando nuevo peluquero con token...")
+
+                                            val nuevoPeluquero = mapOf(
+                                                "nombre" to userDoc.getString("nombre").orEmpty(),
+                                                "apellidos" to userDoc.getString("apellidos").orEmpty(),
+                                                "email" to userDoc.getString("email").orEmpty(),
+                                                "rol" to "peluquero",
+                                                "fotoPerfil" to userDoc.getString("fotoPerfil").orEmpty(),
+                                                "token" to token
+                                            )
+
+                                            ref.set(nuevoPeluquero)
+                                                .addOnSuccessListener {
+                                                    Log.d("TOKEN", "🆕 Documento de peluquero creado y token guardado")
+                                                }
+                                                .addOnFailureListener {
+                                                    Log.e("TOKEN", "❌ Error creando documento de peluquero: ${it.message}")
+                                                }
+                                        }
+                                    }
+                            } else {
+                                Log.e("TOKEN", "❌ negocioId vacío o null para usuario $userId")
+                            }
+                        }
+                        .addOnFailureListener {
+                            Log.e("TOKEN", "❌ Error al obtener documento de usuario para token: ${it.message}")
+                        }
+                }
+            }
+            .addOnFailureListener {
+                Log.e("TOKEN", "❌ Error al obtener token FCM: ${it.message}")
+            }
+    }
 
 }
+

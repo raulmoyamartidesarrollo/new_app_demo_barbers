@@ -25,7 +25,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.github.jetbrains.rssreader.androidApp.screens.AdminAddServiceScreen
 import com.github.jetbrains.rssreader.androidApp.screens.AdminGestionarTrabajadoresScreen
-import com.github.jetbrains.rssreader.androidApp.screens.AdminPeluqueroScreen
 import com.github.jetbrains.rssreader.androidApp.screens.AdminServiciosScreen
 import com.github.jetbrains.rssreader.androidApp.screens.AdminVerCitasScreen
 import com.github.jetbrains.rssreader.androidApp.screens.ConfiguracionFirebaseScreen
@@ -36,6 +35,7 @@ import com.github.jetbrains.rssreader.androidApp.screens.HomeAdminScreen
 import com.github.jetbrains.rssreader.androidApp.screens.HomeClienteScreen
 import com.github.jetbrains.rssreader.androidApp.screens.InicioUsuarioScreen
 import com.github.jetbrains.rssreader.androidApp.screens.LoginScreen
+import com.github.jetbrains.rssreader.androidApp.screens.MiCuentaAdminScreen
 import com.github.jetbrains.rssreader.androidApp.screens.MiCuentaScreen
 import com.github.jetbrains.rssreader.androidApp.screens.RegisterScreen
 import com.github.jetbrains.rssreader.androidApp.screens.ServiciosClienteScreen
@@ -58,39 +58,52 @@ fun AppNavigation(navController: NavHostController) {
             }
         } else {
             try {
-                val clienteDoc = FirebaseFirestore.getInstance()
-                    .collection("clientes")
+                val userDoc = FirebaseFirestore.getInstance()
+                    .collection("usuarios")
                     .document(currentUser.uid)
                     .get()
                     .await()
 
-                if (clienteDoc.exists()) {
-                    val rol = clienteDoc.getString("rol") ?: ""
-                    val idNegocio = clienteDoc.getString("idnegocio") ?: ""
+                if (userDoc.exists()) {
+                    val rol = userDoc.getString("rol") ?: ""
+                    val idNegocio = userDoc.getString("negocioId") ?: ""
 
-                    if (rol == "cliente") {
-                        if (idNegocio.isEmpty()) {
-                            // No tiene barbería aún
-                            navController.navigate("inicio_usuario") {
-                                popUpTo(0) { inclusive = true }
-                                launchSingleTop = true
+                    when (rol) {
+                        "cliente" -> {
+                            if (idNegocio.isNullOrEmpty()) {
+                                navController.navigate("inicio_usuario") {
+                                    popUpTo(0) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            } else {
+                                navController.navigate("home_cliente") {
+                                    popUpTo(0) { inclusive = true }
+                                    launchSingleTop = true
+                                }
                             }
-                        } else {
-                            // Ya tiene barbería asignada
-                            navController.navigate("home_cliente") {
+                        }
+
+                        "peluquero" -> {
+                            navController.navigate("home_admin?modoPeluquero=true") {
                                 popUpTo(0) { inclusive = true }
                                 launchSingleTop = true
                             }
                         }
-                    } else {
-                        // Si no es cliente, rol inválido
-                        navController.navigate("start") {
-                            popUpTo(0) { inclusive = true }
-                            launchSingleTop = true
+                        "superpeluquero" -> {
+                            navController.navigate("home_admin?modoPeluquero=false") {
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+
+                        else -> {
+                            navController.navigate("start") {
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
+                            }
                         }
                     }
                 } else {
-                    // No existe el documento en clientes (mal login o usuario sin datos)
                     navController.navigate("start") {
                         popUpTo(0) { inclusive = true }
                         launchSingleTop = true
@@ -119,9 +132,13 @@ fun AppNavigation(navController: NavHostController) {
         composable("register") { RegisterScreen(navController) }
 
         composable("home_cliente") { HomeClienteScreen(navController) }
-        composable("home_admin") { HomeAdminScreen(navController) }
-        composable("home_peluquero") { AdminPeluqueroScreen(navController) }
+
+
         composable("inicio_usuario") { InicioUsuarioScreen(navController) }
+        composable("home_admin?modoPeluquero={modoPeluquero}") { backStackEntry ->
+            val modoPeluquero = backStackEntry.arguments?.getString("modoPeluquero")?.toBoolean() ?: false
+            HomeAdminScreen(navController = navController, modoPeluquero = modoPeluquero)
+        }
 
         composable("forgot_password") { ForgotClientPasswordScreen(navController) }
         composable("configuracion_firebase") { ConfiguracionFirebaseScreen() }
@@ -130,12 +147,19 @@ fun AppNavigation(navController: NavHostController) {
         composable("pedir_cita") { PedirCitaScreen(navController) }
         composable("pantalla_gestion_servicios") { AdminServiciosScreen(navController) }
         composable("admin_add_service") { AdminAddServiceScreen(navController) }
+        composable("admin_mi_cuenta_Screen?modoPeluquero={modoPeluquero}") { backStackEntry ->
+            val modoPeluquero = backStackEntry.arguments?.getString("modoPeluquero")?.toBoolean() ?: false
+            MiCuentaAdminScreen(navController, modoPeluquero)
+        }
         composable("edit_service/{negocioId}/{serviceId}") { backStackEntry ->
             val negocioId = backStackEntry.arguments?.getString("negocioId") ?: ""
             val serviceId = backStackEntry.arguments?.getString("serviceId") ?: ""
             EditServiceScreen(navController, negocioId, serviceId)
         }
-        composable("pantalla_ver_citas") { AdminVerCitasScreen(navController) }
+        composable("pantalla_ver_citas?modoPeluquero={modoPeluquero}") { backStackEntry ->
+            val modoPeluquero = backStackEntry.arguments?.getString("modoPeluquero")?.toBoolean() ?: false
+            AdminVerCitasScreen(navController, modoPeluquero)
+        }
         composable("pantalla_gestion_trabajadores") { AdminGestionarTrabajadoresScreen(navController) }
         composable("test_notif") { TestNotificacionScreen() }
         composable("gestionar_negocio") { GestionarNegocioScreen(navController) }

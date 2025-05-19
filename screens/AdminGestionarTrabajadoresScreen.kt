@@ -3,13 +3,51 @@ package com.github.jetbrains.rssreader.androidApp.screens
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.*
+import androidx.compose.material.AlertDialog
+import androidx.compose.material.BottomAppBar
+import androidx.compose.material.Button
+import androidx.compose.material.Card
+import androidx.compose.material.FloatingActionButton
+import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedTextField
+import androidx.compose.material.Scaffold
+import androidx.compose.material.Surface
+import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.rememberScaffoldState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,6 +62,7 @@ import androidx.navigation.NavHostController
 import com.github.jetbrains.rssreader.androidApp.FirebaseService
 import com.github.jetbrains.rssreader.androidApp.Peluquero
 import kotlinx.coroutines.launch
+
 
 @Composable
 fun AdminGestionarTrabajadoresScreen(navController: NavHostController) {
@@ -40,15 +79,17 @@ fun AdminGestionarTrabajadoresScreen(navController: NavHostController) {
 
     val showConfirmDialog = remember { mutableStateOf(false) }
     val scaffoldState = rememberScaffoldState()
-    val showSnackbar = remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(showSnackbar.value) {
-        if (showSnackbar.value) {
-            scaffoldState.snackbarHostState.showSnackbar("Perfecto, vamos a borrar")
-            showSnackbar.value = false
-        }
-    }
+
+    var showEliminarDialog by remember { mutableStateOf(false) }
+    var peluqueroAEliminar by remember { mutableStateOf<Peluquero?>(null) }
+
+    var showOpcionesDialog by remember { mutableStateOf(false) }
+    var modoEliminarCitas by remember { mutableStateOf<Boolean?>(null) }
+
+    var showSelectNuevoPeluquero by remember { mutableStateOf(false) }
+    var nuevoPeluqueroId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         FirebaseService.getNegocioIdActual(
@@ -85,15 +126,20 @@ fun AdminGestionarTrabajadoresScreen(navController: NavHostController) {
             }
         },
         bottomBar = {
-            BottomAppBar(
-                backgroundColor = Color.DarkGray,
-                contentPadding = PaddingValues(12.dp)
-            ) {
-                Button(
-                    onClick = { navController.navigate("home_admin") },
-                    modifier = Modifier.fillMaxWidth().height(50.dp)
+            BottomAppBar(backgroundColor = Color.DarkGray) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(WindowInsets.navigationBars.asPaddingValues()) // 🔐 Esto protege contra la barra del sistema
                 ) {
-                    Text("Volver al inicio")
+                    Button(
+                        onClick = { navController.navigate("home_admin") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                    ) {
+                        Text("Volver al inicio")
+                    }
                 }
             }
         }
@@ -113,10 +159,7 @@ fun AdminGestionarTrabajadoresScreen(navController: NavHostController) {
                     modifier = Modifier.padding(top = 16.dp, bottom = 12.dp).align(Alignment.CenterHorizontally)
                 )
 
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(bottom = 80.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                LazyColumn(modifier = Modifier.fillMaxSize().padding(bottom = 80.dp)) {
                     items(peluqueros) { peluquero ->
                         Card(
                             backgroundColor = Color.White,
@@ -145,11 +188,124 @@ fun AdminGestionarTrabajadoresScreen(navController: NavHostController) {
                                         Text("Editar")
                                     }
                                     TextButton(onClick = {
-                                        showConfirmDialog.value = true
+                                        peluqueroAEliminar = peluquero
+                                        showEliminarDialog = true
                                     }) {
                                         Text("Eliminar", color = Color.Red)
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (showEliminarDialog) {
+                AlertDialog(
+                    onDismissRequest = { showEliminarDialog = false },
+                    title = { Text("Eliminar trabajador") },
+                    text = { Text("¿Estás seguro de que quieres eliminar a este trabajador?") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showEliminarDialog = false
+                            showOpcionesDialog = true
+                        }) { Text("Sí") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showEliminarDialog = false }) {
+                            Text("Cancelar")
+                        }
+                    }
+                )
+            }
+
+            if (showOpcionesDialog) {
+                AlertDialog(
+                    onDismissRequest = { showOpcionesDialog = false },
+                    title = { Text("¿Qué hacer con sus citas?") },
+                    text = { Text("Este trabajador tiene citas asignadas. ¿Quieres eliminarlas o reasignarlas a otro trabajador?") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showOpcionesDialog = false
+                            modoEliminarCitas = true
+                            scope.launch {
+                                FirebaseService.eliminarPeluqueroYReservas(
+                                    negocioId = negocioId!!,
+                                    peluqueroId = peluqueroAEliminar!!.id,
+                                    onSuccess = {
+                                        peluqueroAEliminar = null
+                                        FirebaseService.getPeluquerosDelNegocio(negocioId!!) { peluqueros = it }
+                                        scope.launch {
+                                            scaffoldState.snackbarHostState.showSnackbar("Trabajador y sus citas eliminadas.")
+                                        }
+                                    },
+                                    onFailure = {
+                                        scope.launch {
+                                            scaffoldState.snackbarHostState.showSnackbar("Error al eliminar trabajador: ${it.message}")
+                                        }
+                                    }
+                                )
+                            }
+                        }) { Text("Eliminar citas") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            showOpcionesDialog = false
+                            showSelectNuevoPeluquero = true
+                        }) { Text("Reasignar citas") }
+                    }
+                )
+            }
+
+            if (showSelectNuevoPeluquero) {
+                Dialog(onDismissRequest = { showSelectNuevoPeluquero = false }) {
+                    Surface(
+                        shape = MaterialTheme.shapes.medium,
+                        color = Color.White,
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Selecciona nuevo trabajador", fontSize = 18.sp, color = Color.Black)
+
+                            peluqueros.filter { it.id != peluqueroAEliminar?.id }.forEach { peluquero ->
+                                Button(
+                                    onClick = {
+                                        nuevoPeluqueroId = peluquero.id
+                                        showSelectNuevoPeluquero = false
+
+                                        scope.launch {
+                                            FirebaseService.reasignarCitasYEliminarPeluquero(
+                                                negocioId = negocioId!!,
+                                                peluqueroIdAntiguo = peluqueroAEliminar!!.id,
+                                                nuevoPeluqueroId = nuevoPeluqueroId!!,
+                                                onSuccess = {
+                                                    peluqueroAEliminar = null
+                                                    FirebaseService.getPeluquerosDelNegocio(negocioId!!) { peluqueros = it }
+
+                                                    // ✅ Esta parte estaba mal antes por no usar scope.launch
+                                                    scope.launch {
+                                                        scaffoldState.snackbarHostState.showSnackbar("Citas reasignadas y trabajador eliminado.")
+                                                    }
+                                                },
+                                                onFailure = {
+                                                    scope.launch {
+                                                        scaffoldState.snackbarHostState.showSnackbar("Error: ${it.message}")
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                ) {
+                                    Text("${peluquero.nombre} ${peluquero.apellidos}")
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            TextButton(onClick = { showSelectNuevoPeluquero = false }) {
+                                Text("Cancelar", color = Color.Gray)
                             }
                         }
                     }
@@ -200,10 +356,11 @@ fun AdminGestionarTrabajadoresScreen(navController: NavHostController) {
                                     Text("Cancelar", color = Color.Black)
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
+
                                 TextButton(onClick = {
-                                    if (nombre.isBlank() || apellidos.isBlank() || email.isBlank() || password.isBlank()) {
+                                    if (nombre.isBlank() || email.isBlank()) {
                                         scope.launch {
-                                            scaffoldState.snackbarHostState.showSnackbar("Por favor, completa todos los campos.")
+                                            scaffoldState.snackbarHostState.showSnackbar("Nombre y email no pueden estar vacíos.")
                                         }
                                         return@TextButton
                                     }
@@ -215,33 +372,56 @@ fun AdminGestionarTrabajadoresScreen(navController: NavHostController) {
                                         return@TextButton
                                     }
 
-                                    FirebaseService.crearPeluquero(
-                                        negocioId = negocioId!!,
-                                        nombre = nombre,
-                                        apellidos = apellidos,
-                                        email = email,
-                                        password = password,
-                                        onSuccess = {
-                                            showDialog.value = false
-                                            nombre = ""
-                                            apellidos = ""
-                                            email = ""
-                                            password = ""
-                                            peluqueroEditando = null
-                                            FirebaseService.getPeluquerosDelNegocio(negocioId!!) {
-                                                peluqueros = it
-                                            }
+                                    if (peluqueroEditando == null) {
+                                        // CREAR NUEVO TRABAJADOR
+                                        if (password.isBlank()) {
                                             scope.launch {
-                                                scaffoldState.snackbarHostState.showSnackbar("Trabajador creado correctamente")
+                                                scaffoldState.snackbarHostState.showSnackbar("Contraseña obligatoria para nuevo trabajador.")
                                             }
-                                        },
-                                        onFailure = { e ->
-                                            Log.e("Firebase", "Error al guardar peluquero: ${e.message}")
-                                            scope.launch {
-                                                scaffoldState.snackbarHostState.showSnackbar("Error al crear trabajador: ${e.message}")
-                                            }
+                                            return@TextButton
                                         }
-                                    )
+
+                                        FirebaseService.crearPeluquero(
+                                            negocioId = negocioId!!,
+                                            nombre = nombre,
+                                            apellidos = apellidos,
+                                            email = email,
+                                            password = password,
+                                            onSuccess = {
+                                                showDialog.value = false
+                                                FirebaseService.getPeluquerosDelNegocio(negocioId!!) { peluqueros = it }
+                                                scope.launch {
+                                                    scaffoldState.snackbarHostState.showSnackbar("Trabajador creado correctamente")
+                                                }
+                                            },
+                                            onFailure = {
+                                                scope.launch {
+                                                    scaffoldState.snackbarHostState.showSnackbar("Error al crear trabajador: ${it.message}")
+                                                }
+                                            }
+                                        )
+                                    } else {
+                                        // EDITAR TRABAJADOR EXISTENTE
+                                        FirebaseService.actualizarPeluquero(
+                                            negocioId = negocioId!!,
+                                            peluqueroId = peluqueroEditando!!.id,
+                                            nombre = nombre,
+                                            email = email,
+                                            nuevaPassword = if (password.isNotBlank()) password else null,
+                                            onSuccess = {
+                                                showDialog.value = false
+                                                FirebaseService.getPeluquerosDelNegocio(negocioId!!) { peluqueros = it }
+                                                scope.launch {
+                                                    scaffoldState.snackbarHostState.showSnackbar("Trabajador actualizado correctamente")
+                                                }
+                                            },
+                                            onFailure = {
+                                                scope.launch {
+                                                    scaffoldState.snackbarHostState.showSnackbar("Error al actualizar trabajador: ${it.message}")
+                                                }
+                                            }
+                                        )
+                                    }
                                 }) {
                                     Text("Guardar", color = Color.Black)
                                 }
@@ -249,27 +429,6 @@ fun AdminGestionarTrabajadoresScreen(navController: NavHostController) {
                         }
                     }
                 }
-            }
-
-            if (showConfirmDialog.value) {
-                AlertDialog(
-                    onDismissRequest = { showConfirmDialog.value = false },
-                    title = { Text("¿Eliminar trabajador?") },
-                    text = { Text("¿Seguro que quieres eliminar a este trabajador?") },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            showConfirmDialog.value = false
-                            showSnackbar.value = true
-                        }) {
-                            Text("OK")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showConfirmDialog.value = false }) {
-                            Text("Cancelar")
-                        }
-                    }
-                )
             }
         }
     }

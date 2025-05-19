@@ -130,7 +130,7 @@ fun DropdownMenuBoxHorasDisponibles(
 
 
 @Composable
-fun AdminVerCitasScreen(navController: NavHostController) {
+fun AdminVerCitasScreen(navController: NavHostController, modoPeluquero: Boolean = false) {
     val context = LocalContext.current
     var negocioId by remember { mutableStateOf<String?>(null) }
     var peluqueros by remember { mutableStateOf<List<Peluquero>>(emptyList()) }
@@ -177,10 +177,25 @@ fun AdminVerCitasScreen(navController: NavHostController) {
 
     LaunchedEffect(negocioId) {
         negocioId?.let { id ->
-            FirebaseService.getPeluquerosDelNegocio(id) {
-                peluqueros = it
-                peluqueroSeleccionado = if (it.size == 1) it.firstOrNull() else null
+            if (modoPeluquero) {
+                // Obtener peluquero actual por UID
+                val uid = FirebaseService.getCurrentUser()?.uid
+                if (uid != null) {
+                    FirebaseService.getPeluqueroPorId(id, uid) { peluquero ->
+                        peluquero?.let {
+                            peluqueros = listOf(it)
+                            peluqueroSeleccionado = it
+                        }
+                    }
+                }
+            } else {
+                // Administrador: carga todos los peluqueros
+                FirebaseService.getPeluquerosDelNegocio(id) {
+                    peluqueros = it
+                    peluqueroSeleccionado = if (it.size == 1) it.firstOrNull() else null
+                }
             }
+
             FirebaseService.getHorarioNegocio(
                 onSuccess = { horario = it },
                 onFailure = { Log.e("Firebase", "Error al obtener horario: ${it.message}") }
@@ -366,7 +381,11 @@ fun AdminVerCitasScreen(navController: NavHostController) {
                         .padding(horizontal = 16.dp)
                 ) {
                     Button(
-                        onClick = { navController.navigate("home_admin") },
+                        onClick = {
+                            navController.navigate("home_admin?modoPeluquero=$modoPeluquero") {
+                                popUpTo("admin_mi_cuenta_Screen") { inclusive = true }
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Volver al inicio")
