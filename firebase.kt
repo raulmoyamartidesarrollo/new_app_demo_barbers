@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.LocalTime
@@ -1111,6 +1112,17 @@ object FirebaseService {
         } catch (e: Exception) {
             Log.e("FirebaseService", "Error al obtener token del cliente: ${e.message}")
             null
+        }
+    }
+
+    suspend fun subirImagenNegocio(uri: Uri, nombre: String): String {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return ""
+        val storageRef = FirebaseStorage.getInstance().reference
+            .child("imagenes_negocio/$userId/$nombre")
+
+        return withContext(Dispatchers.IO) {
+            storageRef.putFile(uri).await()
+            storageRef.downloadUrl.await().toString()
         }
     }
 

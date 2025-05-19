@@ -1,9 +1,7 @@
 package com.github.jetbrains.rssreader.androidApp
 
 import PedirCitaScreen
-import android.os.Bundle
 import android.util.Log
-import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -33,6 +31,7 @@ import com.github.jetbrains.rssreader.androidApp.screens.AdminVerCitasScreen
 import com.github.jetbrains.rssreader.androidApp.screens.ConfiguracionFirebaseScreen
 import com.github.jetbrains.rssreader.androidApp.screens.EditServiceScreen
 import com.github.jetbrains.rssreader.androidApp.screens.ForgotClientPasswordScreen
+import com.github.jetbrains.rssreader.androidApp.screens.GestionarNegocioScreen
 import com.github.jetbrains.rssreader.androidApp.screens.HomeAdminScreen
 import com.github.jetbrains.rssreader.androidApp.screens.HomeClienteScreen
 import com.github.jetbrains.rssreader.androidApp.screens.InicioUsuarioScreen
@@ -139,6 +138,7 @@ fun AppNavigation(navController: NavHostController) {
         composable("pantalla_ver_citas") { AdminVerCitasScreen(navController) }
         composable("pantalla_gestion_trabajadores") { AdminGestionarTrabajadoresScreen(navController) }
         composable("test_notif") { TestNotificacionScreen() }
+        composable("gestionar_negocio") { GestionarNegocioScreen(navController) }
     }
 }
 

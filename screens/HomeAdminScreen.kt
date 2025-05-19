@@ -156,7 +156,7 @@ fun HomeAdminScreen(navController: NavHostController) {
             )
         }
 
-       /* Button(onClick = {
+       /*Button(onClick = {
             navController.navigate("test_notif")
         }) {
             Text("Test Notificación Push")
