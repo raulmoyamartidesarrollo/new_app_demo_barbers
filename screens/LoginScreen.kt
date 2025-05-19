@@ -1,5 +1,6 @@
 package com.github.jetbrains.rssreader.androidApp.screens
 
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -107,6 +108,8 @@ fun LoginScreen(navController: NavHostController) {
                                     }
 
                                     val rol = userDocument.getString("rol") ?: "cliente"
+                                    Log.d("RAUL", "📥 Login exitoso. Rol detectado: $rol")
+
                                     guardarTokenEnFirestore(userId, rol)
                                     when (rol) {
                                         "cliente" -> {
@@ -265,7 +268,11 @@ fun LoginScreen(navController: NavHostController) {
                                     db.collection("usuarios").document(userId).get()
                                         .addOnSuccessListener { userDocument ->
                                             val rol = userDocument.getString("rol") ?: "cliente"
+                                            Log.d("RAUL", "📥 Login exitoso. Rol detectado: $rol → guardando token ahora...")
+
+
                                             guardarTokenEnFirestore(userId, rol)
+
                                             when (rol) {
                                                 "cliente" -> {
                                                     db.collection("clientes").document(userId).get()
