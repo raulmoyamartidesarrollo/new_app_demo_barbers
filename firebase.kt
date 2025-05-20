@@ -858,18 +858,18 @@ object FirebaseService {
             .get()
             .addOnSuccessListener { result ->
                 val barberias = result.map { doc ->
+                    val horarioMap = doc.get("horario") as? Map<*, *>
+                    val hoy = FirebaseService.obtenerDiaActual()
+                    val horarioDia = horarioMap?.get(hoy) as? Map<*, *>
+                    val cierre = horarioDia?.get("cierreTarde")?.toString() ?: "20:00"
+
                     Barberia(
                         id = doc.id,
                         nombre = doc.getString("nombre") ?: "",
                         direccion = doc.getString("direccion") ?: "",
-                        horaCierre = doc.get("horario")?.let { horarioMap ->
-                            if (horarioMap is Map<*, *>) {
-                                val hoy = obtenerDiaActual()
-                                val horarioDia = horarioMap[hoy] as? Map<*, *>
-                                horarioDia?.get("cierreTarde")?.toString() ?: "20:00"
-                            } else "20:00"
-                        } ?: "20:00",
-                        logoUrl = doc.getString("logoUrl") ?: ""
+                        horaCierre = cierre,
+                        logoUrl = doc.getString("logoUrl") ?: "",
+                        galeria = doc.get("galeria") as? List<String> ?: emptyList()
                     )
                 }
                 onSuccess(barberias)

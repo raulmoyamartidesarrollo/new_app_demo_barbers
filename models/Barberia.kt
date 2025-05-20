@@ -6,5 +6,5 @@ data class Barberia(
     val direccion: String = "",
     val horaCierre: String = "",
     val logoUrl: String = "",
-    val galeriaUrls: List<String> = emptyList()
+    val galeria: List<String> = emptyList()
 )

@@ -3,13 +3,21 @@ package com.github.jetbrains.rssreader.androidApp.components
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
-import androidx.compose.animation.*
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -19,8 +27,21 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +59,7 @@ import com.github.jetbrains.rssreader.androidApp.FirebaseService
 import com.github.jetbrains.rssreader.androidApp.Peluquero
 import com.github.jetbrains.rssreader.androidApp.models.Barberia
 import kotlinx.coroutines.delay
+import kotlin.collections.set
 
 @Composable
 fun SeleccionBarberiaScreen(
@@ -91,24 +113,71 @@ fun SeleccionBarberiaScreen(
                     Card(
                         modifier = Modifier
                             .width(screenWidth * 0.9f)
-                            .height(500.dp),
+                            .height(540.dp),
                         shape = RoundedCornerShape(16.dp),
                         elevation = CardDefaults.cardElevation(8.dp)
                     ) {
                         Column(
                             modifier = Modifier
                                 .background(Color(0xFF1C2A39))
-                                .padding(16.dp)
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
+                            // Logo redondo
                             Image(
                                 painter = rememberAsyncImagePainter(barberia.logoUrl),
                                 contentDescription = "Logo barbería",
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(180.dp)
-                                    .clip(RoundedCornerShape(16.dp)),
-                                contentScale = ContentScale.Crop
+                                    .size(80.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White)
+                                    .padding(4.dp)
                             )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Carrusel
+                            val galeriaState = rememberLazyListState()
+                            LazyRow(
+                                state = galeriaState,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(160.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp)
+                            ) {
+                                items(barberia.galeria.size) { i ->
+                                    val img = barberia.galeria[i]
+                                    Image(
+                                        painter = rememberAsyncImagePainter(img),
+                                        contentDescription = "Imagen galería",
+                                        modifier = Modifier
+                                            .width(280.dp)
+                                            .height(160.dp)
+                                            .clip(RoundedCornerShape(12.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Indicadores
+                            val currentPage = galeriaState.firstVisibleItemIndex
+                            Row(
+                                horizontalArrangement = Arrangement.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                repeat(barberia.galeria.size) { i ->
+                                    Box(
+                                        modifier = Modifier
+                                            .size(if (i == currentPage) 10.dp else 6.dp)
+                                            .padding(2.dp)
+                                            .clip(CircleShape)
+                                            .background(if (i == currentPage) Color.White else Color.Gray)
+                                    )
+                                }
+                            }
 
                             Spacer(modifier = Modifier.height(12.dp))
 
@@ -150,8 +219,9 @@ fun SeleccionBarberiaScreen(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(24.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
 
+                            // Peluqueros
                             LaunchedEffect(barberia.id) {
                                 if (!peluquerosPorBarberia.containsKey(barberia.id)) {
                                     FirebaseService.getPeluquerosDelNegocio(barberia.id) { peluqueros ->
@@ -178,11 +248,6 @@ fun SeleccionBarberiaScreen(
                                 }
                                 if (peluqueros.isEmpty()) Text("No hay peluqueros disponibles.", fontSize = 12.sp, color = Color.LightGray)
                             }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text("Descripción", fontSize = 14.sp, color = Color.Gray)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("Lorem ipsum dolor sit amet, consectetur adipiscing elit...", fontSize = 13.sp, color = Color.White)
                         }
                     }
                 }
