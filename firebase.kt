@@ -10,7 +10,6 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.firestore
 import com.google.firebase.messaging.messaging
 import com.google.firebase.storage.FirebaseStorage
@@ -1321,7 +1320,7 @@ object FirebaseService {
 
                 val db = Firebase.firestore
 
-                // 1. Guardar en `usuarios`
+                // 1. Guardar token en la colección `usuarios`
                 db.collection("usuarios").document(userId)
                     .update("token", token)
                     .addOnSuccessListener {
@@ -1331,59 +1330,45 @@ object FirebaseService {
                         Log.e("TOKEN", "❌ Error al actualizar token en usuarios: ${it.message}")
                     }
 
-                // 2. Si es peluquero o superpeluquero, actualizar también en `peluqueros`
+                // 2. Si es peluquero o superpeluquero, buscar por email en colección `peluqueros`
                 if (rol == "peluquero" || rol == "superpeluquero") {
                     Log.d("TOKEN", "🧩 Usuario es peluquero/superpeluquero, buscando negocioId...")
 
                     db.collection("usuarios").document(userId).get()
                         .addOnSuccessListener { userDoc ->
                             val negocioId = userDoc.getString("negocioId")
-                            Log.d("TOKEN", "🏢 negocioId obtenido: $negocioId")
+                            val email = userDoc.getString("email").orEmpty()
+                            Log.d("TOKEN", "🏢 negocioId: $negocioId, email: $email")
 
-                            if (!negocioId.isNullOrEmpty()) {
-                                val ref = db.collection("negocios")
+                            if (!negocioId.isNullOrEmpty() && email.isNotEmpty()) {
+                                db.collection("negocios")
                                     .document(negocioId)
                                     .collection("peluqueros")
-                                    .document(userId)
-
-                                ref.get()
-                                    .addOnSuccessListener { peluqueroDoc ->
-                                        if (peluqueroDoc.exists()) {
-                                            Log.d("TOKEN", "🧾 Documento de peluquero existe, actualizando token...")
-                                            ref.set(mapOf("token" to token), SetOptions.merge())
+                                    .whereEqualTo("email", email)
+                                    .get()
+                                    .addOnSuccessListener { querySnapshot ->
+                                        if (!querySnapshot.isEmpty) {
+                                            val docRef = querySnapshot.documents.first().reference
+                                            docRef.update("token", token)
                                                 .addOnSuccessListener {
-                                                    Log.d("TOKEN", "✅ Token actualizado en colección peluqueros")
+                                                    Log.d("TOKEN", "✅ Token actualizado en peluquero por email")
                                                 }
                                                 .addOnFailureListener {
-                                                    Log.e("TOKEN", "❌ Error actualizando token en peluqueros: ${it.message}")
+                                                    Log.e("TOKEN", "❌ Error actualizando token en peluquero: ${it.message}")
                                                 }
                                         } else {
-                                            Log.d("TOKEN", "📄 Documento no existe, creando nuevo peluquero con token...")
-
-                                            val nuevoPeluquero = mapOf(
-                                                "nombre" to userDoc.getString("nombre").orEmpty(),
-                                                "apellidos" to userDoc.getString("apellidos").orEmpty(),
-                                                "email" to userDoc.getString("email").orEmpty(),
-                                                "rol" to "peluquero",
-                                                "fotoPerfil" to userDoc.getString("fotoPerfil").orEmpty(),
-                                                "token" to token
-                                            )
-
-                                            ref.set(nuevoPeluquero)
-                                                .addOnSuccessListener {
-                                                    Log.d("TOKEN", "🆕 Documento de peluquero creado y token guardado")
-                                                }
-                                                .addOnFailureListener {
-                                                    Log.e("TOKEN", "❌ Error creando documento de peluquero: ${it.message}")
-                                                }
+                                            Log.e("TOKEN", "❌ No se encontró peluquero con email $email en negocio $negocioId")
                                         }
                                     }
+                                    .addOnFailureListener {
+                                        Log.e("TOKEN", "❌ Error buscando peluquero por email: ${it.message}")
+                                    }
                             } else {
-                                Log.e("TOKEN", "❌ negocioId vacío o null para usuario $userId")
+                                Log.e("TOKEN", "❌ negocioId o email vacío para usuario $userId")
                             }
                         }
                         .addOnFailureListener {
-                            Log.e("TOKEN", "❌ Error al obtener documento de usuario para token: ${it.message}")
+                            Log.e("TOKEN", "❌ Error al obtener documento del usuario: ${it.message}")
                         }
                 }
             }
