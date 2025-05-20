@@ -1320,7 +1320,7 @@ object FirebaseService {
 
                 val db = Firebase.firestore
 
-                // 1. Guardar token en la colección `usuarios`
+                // 1. Actualizar token en `usuarios`
                 db.collection("usuarios").document(userId)
                     .update("token", token)
                     .addOnSuccessListener {
@@ -1330,45 +1330,30 @@ object FirebaseService {
                         Log.e("TOKEN", "❌ Error al actualizar token en usuarios: ${it.message}")
                     }
 
-                // 2. Si es peluquero o superpeluquero, buscar por email en colección `peluqueros`
+                // 2. Si es peluquero o superpeluquero, actualizar también en `peluqueros/{userId}`
                 if (rol == "peluquero" || rol == "superpeluquero") {
-                    Log.d("TOKEN", "🧩 Usuario es peluquero/superpeluquero, buscando negocioId...")
-
                     db.collection("usuarios").document(userId).get()
                         .addOnSuccessListener { userDoc ->
                             val negocioId = userDoc.getString("negocioId")
-                            val email = userDoc.getString("email").orEmpty()
-                            Log.d("TOKEN", "🏢 negocioId: $negocioId, email: $email")
-
-                            if (!negocioId.isNullOrEmpty() && email.isNotEmpty()) {
-                                db.collection("negocios")
+                            if (!negocioId.isNullOrEmpty()) {
+                                val peluqueroRef = db.collection("negocios")
                                     .document(negocioId)
                                     .collection("peluqueros")
-                                    .whereEqualTo("email", email)
-                                    .get()
-                                    .addOnSuccessListener { querySnapshot ->
-                                        if (!querySnapshot.isEmpty) {
-                                            val docRef = querySnapshot.documents.first().reference
-                                            docRef.update("token", token)
-                                                .addOnSuccessListener {
-                                                    Log.d("TOKEN", "✅ Token actualizado en peluquero por email")
-                                                }
-                                                .addOnFailureListener {
-                                                    Log.e("TOKEN", "❌ Error actualizando token en peluquero: ${it.message}")
-                                                }
-                                        } else {
-                                            Log.e("TOKEN", "❌ No se encontró peluquero con email $email en negocio $negocioId")
-                                        }
+                                    .document(userId)
+
+                                peluqueroRef.update("token", token)
+                                    .addOnSuccessListener {
+                                        Log.d("TOKEN", "✅ Token actualizado en peluquero con ID")
                                     }
                                     .addOnFailureListener {
-                                        Log.e("TOKEN", "❌ Error buscando peluquero por email: ${it.message}")
+                                        Log.e("TOKEN", "❌ Error actualizando token en peluquero: ${it.message}")
                                     }
                             } else {
-                                Log.e("TOKEN", "❌ negocioId o email vacío para usuario $userId")
+                                Log.e("TOKEN", "❌ negocioId vacío para usuario $userId")
                             }
                         }
                         .addOnFailureListener {
-                            Log.e("TOKEN", "❌ Error al obtener documento del usuario: ${it.message}")
+                            Log.e("TOKEN", "❌ Error al obtener documento de usuario: ${it.message}")
                         }
                 }
             }
