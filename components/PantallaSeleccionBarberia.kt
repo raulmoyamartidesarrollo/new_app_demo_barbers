@@ -19,8 +19,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -59,6 +61,7 @@ fun SeleccionBarberiaScreen(
     val context = LocalContext.current
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val sliderState = rememberLazyListState()
+    val scrollState = rememberScrollState()
 
     var indexActual by remember { mutableStateOf(0) }
     var opcionSeleccionada by remember { mutableStateOf("Servicios") }
@@ -77,15 +80,8 @@ fun SeleccionBarberiaScreen(
 
     LaunchedEffect(sliderState.firstVisibleItemIndex) {
         indexActual = sliderState.firstVisibleItemIndex
-        opcionSeleccionada = "Servicios" // Cambiar tab a servicios
-        val nuevaBarberia = barberiasDisponibles.getOrNull(indexActual)
-        nuevaBarberia?.let {
-            if (!serviciosPorBarberia.contains(it.id)) {
-                FirebaseService.getServiciosNegocio(it.id, { servicios ->
-                    serviciosPorBarberia[it.id] = servicios
-                }, {})
-            }
-        }
+        opcionSeleccionada = "Servicios"
+        scrollState.animateScrollTo(0)
     }
 
     val barberiaActual = barberiasDisponibles.getOrNull(indexActual)
@@ -128,7 +124,6 @@ fun SeleccionBarberiaScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Menú superior
         Row(
             modifier = Modifier.fillMaxWidth().background(Color(0xFFFF6680)).padding(8.dp),
             horizontalArrangement = Arrangement.SpaceAround
@@ -145,32 +140,29 @@ fun SeleccionBarberiaScreen(
                         .clickable {
                             opcionSeleccionada = opcion
 
-                            if (opcion == "Peluqueros") {
-                                barberiaActual?.let {
+                            when (opcion) {
+                                "Peluqueros" -> barberiaActual?.let {
                                     if (!peluquerosPorBarberia.contains(it.id)) {
                                         FirebaseService.getPeluquerosDelNegocio(it.id) { peluqueros ->
                                             peluquerosPorBarberia[it.id] = peluqueros
                                         }
                                     }
                                 }
-                            } else if (opcion == "Servicios") {
-                                barberiaActual?.let {
+                                "Servicios" -> barberiaActual?.let {
                                     if (!serviciosPorBarberia.contains(it.id)) {
                                         FirebaseService.getServiciosNegocio(it.id, { servicios ->
                                             serviciosPorBarberia[it.id] = servicios
                                         }, {})
                                     }
                                 }
-                            } else if (opcion == "Mapa") {
-                                barberiaActual?.let {
+                                "Mapa" -> barberiaActual?.let {
                                     val intent = Intent(Intent.ACTION_VIEW).apply {
                                         data = Uri.parse("geo:0,0?q=${Uri.encode(it.direccion)}")
                                         setPackage("com.google.android.apps.maps")
                                     }
                                     context.startActivity(intent)
                                 }
-                            } else if (opcion == "Llamar") {
-                                barberiaActual?.let {
+                                "Llamar" -> barberiaActual?.let {
                                     val intent = Intent(Intent.ACTION_DIAL).apply {
                                         data = Uri.parse("tel:${it.telefono}")
                                     }
@@ -184,35 +176,27 @@ fun SeleccionBarberiaScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Contenido dinámico
-        when (opcionSeleccionada) {
-            "Servicios" -> {
-                val servicios = barberiaActual?.let { serviciosPorBarberia[it.id] } ?: emptyList()
-                Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 24.dp).verticalScroll(scrollState)) {
+            when (opcionSeleccionada) {
+                "Servicios" -> {
+                    val servicios = barberiaActual?.let { serviciosPorBarberia[it.id] } ?: emptyList()
                     servicios.forEach { servicio ->
-                        Box(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color(0xFF2C3E50))
                                 .padding(12.dp)
-                                .padding(bottom = 8.dp)
+                                .padding(bottom = 12.dp)
                         ) {
-                            Column {
-                                Text(servicio["nombre"].toString(), color = Color.White, fontWeight = FontWeight.Bold)
-                                Text("\u23F0 ${servicio["duracion"]} min", color = Color.LightGray, fontSize = 12.sp)
-                                Text("\u20AC ${servicio["precio"]}", color = Color(0xFF00C853), fontSize = 14.sp)
-                            }
-
-
+                            Text(servicio["nombre"].toString(), color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("\u23F0 ${servicio["duracion"]} min", color = Color.LightGray, fontSize = 12.sp)
+                            Text("\u20AC ${servicio["precio"]}", color = Color(0xFF00C853), fontSize = 14.sp)
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
-            }
-            "Peluqueros" -> {
-                val peluqueros = barberiaActual?.let { peluquerosPorBarberia[it.id] } ?: emptyList()
-                Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                "Peluqueros" -> {
+                    val peluqueros = barberiaActual?.let { peluquerosPorBarberia[it.id] } ?: emptyList()
                     peluqueros.forEach { peluquero ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -221,7 +205,7 @@ fun SeleccionBarberiaScreen(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color(0xFF2C3E50))
                                 .padding(12.dp)
-                                .padding(bottom = 8.dp)
+                                .padding(bottom = 12.dp)
                         ) {
                             Box(
                                 modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.Gray),
@@ -234,10 +218,7 @@ fun SeleccionBarberiaScreen(
                                 Text("${peluquero.nombre} ${peluquero.apellidos}", color = Color.White, fontWeight = FontWeight.Bold)
                                 Text(peluquero.email, color = Color.LightGray, fontSize = 12.sp)
                             }
-                            Spacer(modifier = Modifier.height(12.dp))
-
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
             }
@@ -245,7 +226,6 @@ fun SeleccionBarberiaScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Botón Favorito
         barberiaActual?.let { barberia ->
             val esFavorita = favoritoId == barberia.id
             Button(
