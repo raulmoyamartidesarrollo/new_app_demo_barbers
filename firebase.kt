@@ -862,6 +862,7 @@ object FirebaseService {
                     val hoy = FirebaseService.obtenerDiaActual()
                     val horarioDia = horarioMap?.get(hoy) as? Map<*, *>
                     val cierre = horarioDia?.get("cierreTarde")?.toString() ?: "20:00"
+                    val telefono = doc.get("telefono")
 
                     Barberia(
                         id = doc.id,
@@ -869,7 +870,8 @@ object FirebaseService {
                         direccion = doc.getString("direccion") ?: "",
                         horaCierre = cierre,
                         logoUrl = doc.getString("logoUrl") ?: "",
-                        galeria = doc.get("galeria") as? List<String> ?: emptyList()
+                        galeria = doc.get("galeria") as? List<String> ?: emptyList(),
+                        telefono = doc.getString("telefono") ?: ""
                     )
                 }
                 onSuccess(barberias)

@@ -2,7 +2,6 @@ package com.github.jetbrains.rssreader.androidApp.components
 
 import android.content.Intent
 import android.net.Uri
-import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,24 +14,24 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,265 +58,183 @@ import coil.compose.rememberAsyncImagePainter
 import com.github.jetbrains.rssreader.androidApp.FirebaseService
 import com.github.jetbrains.rssreader.androidApp.Peluquero
 import com.github.jetbrains.rssreader.androidApp.models.Barberia
-import kotlinx.coroutines.delay
-import kotlin.collections.set
 
 @Composable
 fun SeleccionBarberiaScreen(
     barberiasDisponibles: List<Barberia>,
     navController: NavController
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
     var favoritoId by remember { mutableStateOf<String?>(null) }
-    var mostrarAlerta by remember { mutableStateOf(true) }
-    var iniciarAnimacion by remember { mutableStateOf(false) }
-    var paginaActual by remember { mutableStateOf(0) }
-    var barberiaSeleccionada by remember { mutableStateOf<Barberia?>(null) }
-    var mostrarServicios by remember { mutableStateOf(false) }
+    var seccionActual by remember { mutableStateOf("servicios") }
     var serviciosActuales by remember { mutableStateOf<List<Map<String, Any>>>(emptyList()) }
     val peluquerosPorBarberia = remember { mutableStateMapOf<String, List<Peluquero>>() }
 
-    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val listState = rememberLazyListState()
-    val context = LocalContext.current
+    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
 
     LaunchedEffect(Unit) {
-        val clienteId = FirebaseService.getCurrentUser()?.uid
-        clienteId?.let {
-            FirebaseService.obtenerBarberiaFavorita(it) { idFavorita ->
-                favoritoId = idFavorita
-            }
+        FirebaseService.getCurrentUser()?.uid?.let { uid ->
+            FirebaseService.obtenerBarberiaFavorita(uid) { favoritoId = it }
         }
-        delay(500)
-        iniciarAnimacion = true
     }
-
-    LaunchedEffect(listState.firstVisibleItemIndex) {
-        paginaActual = listState.firstVisibleItemIndex
-    }
-
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF1C2A39))) {
+    val barberia = barberiasDisponibles.getOrNull(listState.firstVisibleItemIndex)
+    barberia?.let {
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF1C2A39))
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            LazyRow(
-                state = listState,
+            Box {
+                Image(
+                    painter = rememberAsyncImagePainter(barberia.galeria.firstOrNull()),
+                    contentDescription = "Imagen principal",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentScale = ContentScale.Crop
+                )
+                Image(
+                    painter = rememberAsyncImagePainter(barberia.logoUrl),
+                    contentDescription = "Logo",
+                    modifier = Modifier
+                        .size(80.dp)
+                        .padding(8.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .align(Alignment.BottomStart)
+                        .offset(y = 40.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(48.dp))
+            Text(barberia.nombre.uppercase(), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("${barberia.direccion} • Abierto hasta ${barberia.horaCierre}", fontSize = 14.sp, color = Color.Gray)
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(horizontal = 24.dp)
+                    .background(Color.White)
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                items(barberiasDisponibles.size) { index ->
-                    val barberia = barberiasDisponibles[index]
+                BotonAccion("Servicios", Icons.Default.ContentCut, seccionActual == "servicios") {
+                    seccionActual = "servicios"
+                    FirebaseService.getServiciosNegocio(barberia.id, {
+                        serviciosActuales = it
+                    }, {})
+                }
+                BotonAccion("Staff", Icons.Default.Groups, seccionActual == "staff") {
+                    seccionActual = "staff"
+                    if (!peluquerosPorBarberia.containsKey(barberia.id)) {
+                        FirebaseService.getPeluquerosDelNegocio(barberia.id) {
+                            peluquerosPorBarberia[barberia.id] = it
+                        }
+                    }
+                }
+                BotonAccion("Favorito", Icons.Default.Favorite, favoritoId == barberia.id) {
+                    FirebaseService.getCurrentUser()?.uid?.let { uid ->
+                        if (favoritoId == barberia.id) {
+                            FirebaseService.quitarBarberiaFavoritaCliente(uid, { favoritoId = null }, {})
+                        } else {
+                            FirebaseService.guardarBarberiaFavoritaCliente(uid, barberia.id, { favoritoId = barberia.id }, {})
+                        }
+                    }
+                }
+                BotonAccion("Mapa", Icons.Default.LocationOn, false) {
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        data = Uri.parse("geo:0,0?q=${Uri.encode(barberia.direccion)}")
+                        setPackage("com.google.android.apps.maps")
+                    }
+                    context.startActivity(intent)
+                }
+                BotonAccion("Llamar", Icons.Default.Call, false) {
+                    val intent = Intent(Intent.ACTION_DIAL).apply {
+                        data = Uri.parse("tel:${barberia.telefono}")
+                    }
+                    context.startActivity(intent)
+                }
+            }
+            if (seccionActual == "servicios") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    serviciosActuales.forEach {
+                        val nombre = it["nombre"]?.toString() ?: ""
+                        val precio = it["precio"]?.toString() ?: "0"
+                        val duracion = it["duracion"]?.toString() ?: "0"
 
-                    Card(
-                        modifier = Modifier
-                            .width(screenWidth * 0.9f)
-                            .height(540.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(8.dp)
-                    ) {
-                        Column(
+                        Row(
                             modifier = Modifier
-                                .background(Color(0xFF1C2A39))
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                                .fillMaxWidth()
+                                .background(Color.White, RoundedCornerShape(8.dp))
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Logo redondo
-                            Image(
-                                painter = rememberAsyncImagePainter(barberia.logoUrl),
-                                contentDescription = "Logo barbería",
-                                modifier = Modifier
-                                    .size(80.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White)
-                                    .padding(4.dp)
-                            )
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Carrusel
-                            val galeriaState = rememberLazyListState()
-                            LazyRow(
-                                state = galeriaState,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(160.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp)
-                            ) {
-                                items(barberia.galeria.size) { i ->
-                                    val img = barberia.galeria[i]
-                                    Image(
-                                        painter = rememberAsyncImagePainter(img),
-                                        contentDescription = "Imagen galería",
-                                        modifier = Modifier
-                                            .width(280.dp)
-                                            .height(160.dp)
-                                            .clip(RoundedCornerShape(12.dp)),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                }
+                            Icon(Icons.Default.ContentCut, contentDescription = null, tint = Color.Black)
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(nombre, fontWeight = FontWeight.Bold, color = Color.Black)
+                                Text("⏱ $duracion min", fontSize = 12.sp, color = Color.Gray)
                             }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Indicadores
-                            val currentPage = galeriaState.firstVisibleItemIndex
-                            Row(
-                                horizontalArrangement = Arrangement.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                repeat(barberia.galeria.size) { i ->
-                                    Box(
-                                        modifier = Modifier
-                                            .size(if (i == currentPage) 10.dp else 6.dp)
-                                            .padding(2.dp)
-                                            .clip(CircleShape)
-                                            .background(if (i == currentPage) Color.White else Color.Gray)
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Text(barberia.nombre.uppercase(), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            Text("${barberia.direccion} • Abierto hasta ${barberia.horaCierre}", fontSize = 14.sp, color = Color.Gray)
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                BotonAccion("Servicios", Icons.Default.CalendarToday, true) {
-                                    FirebaseService.getServiciosNegocio(barberia.id, {
-                                        serviciosActuales = it
-                                        mostrarServicios = true
-                                    }, {
-                                        Log.e("FIREBASE_DEBUG", "Error al obtener servicios: ${it.message}")
-                                    })
-                                }
-                                BotonAccion("Favorito", if (favoritoId == barberia.id) Icons.Default.Favorite else Icons.Default.FavoriteBorder) {
-                                    val clienteId = FirebaseService.getCurrentUser()?.uid
-                                    clienteId?.let {
-                                        if (favoritoId == barberia.id) {
-                                            FirebaseService.quitarBarberiaFavoritaCliente(it, {
-                                                favoritoId = null
-                                            }, {})
-                                        } else {
-                                            FirebaseService.guardarBarberiaFavoritaCliente(it, barberia.id, {
-                                                favoritoId = barberia.id
-                                                barberiaSeleccionada = barberia
-                                            }, {})
-                                        }
-                                    }
-                                }
-                                BotonAccion("Localización", Icons.Default.LocationOn) {
-                                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                                        data = Uri.parse("geo:0,0?q=${Uri.encode(barberia.direccion)}")
-                                        setPackage("com.google.android.apps.maps")
-                                    }
-                                    context.startActivity(intent)
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Peluqueros
-                            LaunchedEffect(barberia.id) {
-                                if (!peluquerosPorBarberia.containsKey(barberia.id)) {
-                                    FirebaseService.getPeluquerosDelNegocio(barberia.id) { peluqueros ->
-                                        peluquerosPorBarberia[barberia.id] = peluqueros
-                                    }
-                                }
-                            }
-
-                            Text("Peluqueros", fontSize = 14.sp, color = Color.Gray)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            val peluqueros = peluquerosPorBarberia[barberia.id] ?: emptyList()
+                            Text("€ $precio", color = Color(0xFF00C853), fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+            if (seccionActual == "staff") {
+                val peluqueros = peluquerosPorBarberia[barberia.id] ?: emptyList()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    peluqueros.forEach {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.White, RoundedCornerShape(8.dp))
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Person, contentDescription = null, tint = Color.Black)
+                            Spacer(Modifier.width(12.dp))
                             Column {
-                                peluqueros.forEach {
-                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
-                                        Box(
-                                            modifier = Modifier.size(48.dp).clip(CircleShape).background(Color.LightGray),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(it.nombre.take(1).uppercase(), fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                                        }
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Text("${it.nombre} ${it.apellidos}", fontSize = 14.sp, color = Color.White)
-                                    }
-                                }
-                                if (peluqueros.isEmpty()) Text("No hay peluqueros disponibles.", fontSize = 12.sp, color = Color.LightGray)
+                                Text("${it.nombre} ${it.apellidos}", fontWeight = FontWeight.Bold, color = Color.Black)
+                                Text("Peluquero", fontSize = 12.sp, color = Color.Gray)
                             }
                         }
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            val puedeContinuar = remember(favoritoId) { favoritoId != null }
-
-            Button(
-                onClick = {
-                    navController.navigate("home_cliente") {
-                        popUpTo("inicio_usuario") { inclusive = true }
-                    }
-                },
-                enabled = puedeContinuar,
-                modifier = Modifier.fillMaxWidth(0.7f).height(50.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (puedeContinuar) Color(0xFFFF6680) else Color.Gray,
-                    contentColor = Color.White
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("Continuar", fontWeight = FontWeight.Bold)
-            }
-        }
-
-        if (mostrarServicios) {
-            AlertDialog(
-                onDismissRequest = { mostrarServicios = false },
-                confirmButton = {
-                    Button(onClick = { mostrarServicios = false }) {
-                        Text("Cerrar")
-                    }
-                },
-                title = { Text("Servicios disponibles") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        serviciosActuales.forEach {
-                            val nombre = it["nombre"]?.toString() ?: "Sin nombre"
-                            val precio = it["precio"]?.toString() ?: "0€"
-                            val duracion = it["duracion"]?.toString() ?: "0 min"
-                            Column {
-                                Text(nombre, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                Text("Duración: $duracion • Precio: $precio", fontSize = 13.sp, color = Color.LightGray)
-                                Divider(color = Color.Gray.copy(alpha = 0.3f))
-                            }
-                        }
-                    }
-                },
-                containerColor = Color(0xFF1C2A39),
-                titleContentColor = Color.White,
-                textContentColor = Color.LightGray
-            )
         }
     }
 }
 
 @Composable
-fun BotonAccion(texto: String, icono: ImageVector, seleccionado: Boolean = false, onClick: () -> Unit) {
-    val backgroundColor = if (seleccionado) Color(0xFF0A84FF) else Color.White
-    val contentColor = if (seleccionado) Color.White else Color.Black
+fun BotonAccion(texto: String, icono: ImageVector, seleccionado: Boolean, onClick: () -> Unit) {
+    val background = if (seleccionado) Color(0xFF1C2A39) else Color.White
+    val color = if (seleccionado) Color.White else Color.Black
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(90.dp).clip(RoundedCornerShape(12.dp)).background(backgroundColor).clickable { onClick() }.padding(vertical = 12.dp)
+        modifier = Modifier
+            .width(72.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(background)
+            .clickable { onClick() }
+            .padding(8.dp)
     ) {
-        Icon(icono, contentDescription = texto, tint = contentColor, modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(texto, color = contentColor, fontSize = 14.sp)
+        Icon(icono, contentDescription = texto, tint = color, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.height(4.dp))
+        Text(texto, color = color, fontSize = 10.sp)
     }
 }

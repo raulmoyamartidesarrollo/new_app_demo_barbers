@@ -1,3 +1,4 @@
+
 package com.github.jetbrains.rssreader.androidApp.screens
 
 import android.content.Context
@@ -5,12 +6,12 @@ import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.result.contract.ActivityResultContracts.GetContent
-import androidx.activity.result.contract.ActivityResultContracts.GetMultipleContents
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,11 +22,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Scaffold
 import androidx.compose.material.ScrollableTabRow
@@ -35,6 +39,8 @@ import androidx.compose.material.Tab
 import androidx.compose.material.TabRow
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -46,6 +52,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -65,29 +72,14 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 @Composable
-
-
 fun GestionarNegocioScreen(navController: NavHostController) {
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = LocalFocusManager.current
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { granted ->
-            if (!granted) {
-                scope.launch {
-                    snackbarHostState.showSnackbar("Permiso de cámara denegado")
-                }
-            }
-        }
-    )
+    val context = LocalContext.current
 
-    LaunchedEffect(Unit) {
-        cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
-    }
     val diasSemana = listOf("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
     val diasIniciales = listOf("L", "M", "X", "J", "V", "S", "D")
-
 
     var nombre by remember { mutableStateOf("") }
     var direccion by remember { mutableStateOf("") }
@@ -100,52 +92,35 @@ fun GestionarNegocioScreen(navController: NavHostController) {
 
     var logoUri by remember { mutableStateOf<Uri?>(null) }
     val galeriaUris = remember { mutableStateListOf<Uri>() }
+
     var showLogoDialog by remember { mutableStateOf(false) }
     var showGaleriaDialog by remember { mutableStateOf(false) }
     var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
 
-    val logoPickerLauncher = rememberLauncherForActivityResult(
-        contract = GetContent()
-    ) { uri: Uri? ->
+    val logoGalleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { logoUri = it }
     }
 
-    val galeriaPickerLauncher = rememberLauncherForActivityResult(
-        contract = GetMultipleContents()
-    ) { uris: List<Uri> ->
-        galeriaUris.clear()
+    val galeriaGalleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         galeriaUris.addAll(uris)
     }
 
-    var selectedTabIndex by remember { mutableStateOf(0) }
-    val tabs = listOf("Datos", "Horarios", "Imágenes")
-    var selectedDiaIndex by remember { mutableStateOf(0) }
-
-    val takePhotoLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success ->
+    val takePhotoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success) {
-            tempCameraUri?.let { uri ->
-                // Si estamos subiendo logo o galería
-                if (showLogoDialog) logoUri = uri
-                if (showGaleriaDialog) galeriaUris.add(uri)
+            tempCameraUri?.let {
+                if (showLogoDialog) logoUri = it
+                if (showGaleriaDialog) galeriaUris.add(it)
             }
         }
-    }
-
-    val logoGalleryLauncher = rememberLauncherForActivityResult(GetContent()) { uri: Uri? ->
-        uri?.let { logoUri = it }
-    }
-
-    val galeriaGalleryLauncher = rememberLauncherForActivityResult(GetMultipleContents()) { uris: List<Uri> ->
-        galeriaUris.clear()
-        galeriaUris.addAll(uris)
     }
 
     fun crearArchivoImagen(context: Context): Uri {
         val imagenFile = File.createTempFile("IMG_", ".jpg", context.cacheDir)
         return FileProvider.getUriForFile(context, "${context.packageName}.provider", imagenFile)
     }
+
+    var selectedTabIndex by remember { mutableStateOf(0) }
+    var selectedDiaIndex by remember { mutableStateOf(0) }
 
     LaunchedEffect(Unit) {
         FirebaseService.getDatosNegocio(
@@ -154,20 +129,18 @@ fun GestionarNegocioScreen(navController: NavHostController) {
                 direccion = datos["direccion"] as? String ?: ""
                 telefono = datos["telefono"] as? String ?: ""
                 codigoPostal = datos["codigoPostal"] as? String ?: ""
-
                 val horarioMap = datos["horario"] as? Map<String, Map<String, String>> ?: emptyMap()
                 diasSemana.forEach { dia ->
                     val diaData = horarioMap[dia]
-                    val horarioDia = HorarioDia(
+                    horarios[dia]?.value = HorarioDia(
                         aperturaManana = diaData?.get("aperturaManana") ?: "",
                         cierreManana = diaData?.get("cierreManana") ?: "",
                         aperturaTarde = diaData?.get("aperturaTarde") ?: "",
                         cierreTarde = diaData?.get("cierreTarde") ?: ""
                     )
-                    horarios[dia]?.value = horarioDia
                 }
             },
-            onError = { Log.e("FIREBASE", "No se pudieron cargar los datos del negocio") }
+            onError = { Log.e("FIREBASE", "Error cargando datos negocio") }
         )
     }
 
@@ -176,8 +149,8 @@ fun GestionarNegocioScreen(navController: NavHostController) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF1C2D3C))
-            .padding(WindowInsets.safeDrawing.asPaddingValues())
             .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
+            .padding(WindowInsets.safeDrawing.asPaddingValues())
     ) { padding ->
         Column(
             modifier = Modifier
@@ -190,86 +163,56 @@ fun GestionarNegocioScreen(navController: NavHostController) {
             Image(
                 painter = painterResource(id = R.drawable.logo),
                 contentDescription = "Logo",
-                modifier = Modifier
-                    .height(100.dp)
-                    .padding(bottom = 16.dp)
+                modifier = Modifier.height(100.dp)
             )
 
-            TabRow(
-                selectedTabIndex = selectedTabIndex,
-                backgroundColor = Color(0xFF1C2D3C),
-                contentColor = Color.White
-            ) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTabIndex == index,
-                        onClick = { selectedTabIndex = index }
-                    ) {
-                        Text(title)
+            TabRow(selectedTabIndex, backgroundColor = Color(0xFF1C2D3C), contentColor = Color.White) {
+                listOf("Datos", "Horarios", "Imágenes").forEachIndexed { i, text ->
+                    Tab(selected = selectedTabIndex == i, onClick = { selectedTabIndex = i }) {
+                        Text(text)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(16.dp))
 
             when (selectedTabIndex) {
                 0 -> {
                     Text("Editar datos del negocio", color = Color.White, style = MaterialTheme.typography.h6)
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(Modifier.height(12.dp))
                     CustomTextField(nombre, { nombre = it }, "Nombre del negocio")
                     CustomTextField(direccion, { direccion = it }, "Dirección")
                     CustomTextField(telefono, { telefono = it }, "Teléfono")
                     CustomTextField(codigoPostal, { codigoPostal = it }, "Código Postal")
                 }
-
                 1 -> {
                     Text("Horario habitual", color = Color.White)
-                    ScrollableTabRow(
-                        selectedTabIndex = selectedDiaIndex,
-                        backgroundColor = Color(0xFF263544)
-                    ) {
+                    ScrollableTabRow(selectedTabIndex = selectedDiaIndex, backgroundColor = Color(0xFF263544)) {
                         diasIniciales.forEachIndexed { index, letra ->
-                            Tab(
-                                selected = selectedDiaIndex == index,
-                                onClick = { selectedDiaIndex = index }
-                            ) {
+                            Tab(selected = selectedDiaIndex == index, onClick = { selectedDiaIndex = index }) {
                                 Text(letra, fontSize = 14.sp)
                             }
                         }
                     }
                     val diaSeleccionado = diasSemana[selectedDiaIndex]
-                    val horario = horarios[diaSeleccionado]!!.value
-                    DiaHorarioPicker(horario) { horarios[diaSeleccionado]!!.value = it }
-                }
-
-                2 -> {
-                    Text("Subir imágenes", color = Color.White, style = MaterialTheme.typography.h6)
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text("Logo del negocio", color = Color.White)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(onClick = { showLogoDialog = true }) {
-                        Text("Seleccionar logo")
+                    DiaHorarioPicker(horarios[diaSeleccionado]!!.value) {
+                        horarios[diaSeleccionado]!!.value = it
                     }
+                }
+                2 -> {
+                    Text("Imágenes", color = Color.White, style = MaterialTheme.typography.h6)
+                    Spacer(Modifier.height(12.dp))
+                    Button(onClick = { showLogoDialog = true }) { Text("Seleccionar logo") }
                     logoUri?.let {
                         Image(
                             painter = rememberAsyncImagePainter(it),
-                            contentDescription = "Logo seleccionado",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(150.dp)
-                                .padding(top = 8.dp)
+                            contentDescription = "Logo",
+                            modifier = Modifier.fillMaxWidth().height(150.dp).padding(top = 8.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Text("Imágenes para la galería", color = Color.White)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(onClick = { showGaleriaDialog = true }) {
-                        Text("Seleccionar imágenes")
-                    }
-
+                    Spacer(Modifier.height(16.dp))
+                    Button(onClick = { showGaleriaDialog = true }) { Text("Añadir imágenes a galería") }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -277,26 +220,38 @@ fun GestionarNegocioScreen(navController: NavHostController) {
                             .horizontalScroll(rememberScrollState())
                     ) {
                         galeriaUris.forEach { uri ->
-                            Image(
-                                painter = rememberAsyncImagePainter(uri),
-                                contentDescription = "Imagen galería",
-                                modifier = Modifier
-                                    .height(100.dp)
-                                    .padding(end = 8.dp)
-                            )
+                            Box(modifier = Modifier.padding(end = 8.dp)) {
+                                Image(
+                                    painter = rememberAsyncImagePainter(uri),
+                                    contentDescription = "Imagen",
+                                    modifier = Modifier
+                                        .height(100.dp)
+                                        .width(100.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Eliminar",
+                                    tint = Color.Red,
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(4.dp)
+                                        .clickable { galeriaUris.remove(uri) }
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(16.dp))
 
             Button(
                 onClick = {
                     scope.launch {
                         val logoUrl = logoUri?.let { FirebaseService.subirImagenNegocio(it, "logo.jpg") } ?: ""
-                        val urlsGaleria = galeriaUris.mapIndexed { index, uri ->
-                            FirebaseService.subirImagenNegocio(uri, "galeria_$index.jpg")
+                        val urlsGaleria = galeriaUris.mapIndexed { i, uri ->
+                            FirebaseService.subirImagenNegocio(uri, "galeria_$i.jpg")
                         }
 
                         FirebaseService.guardarDatosNegocio(
@@ -305,14 +260,10 @@ fun GestionarNegocioScreen(navController: NavHostController) {
                             logoUrl = logoUrl,
                             galeria = urlsGaleria,
                             onSuccess = {
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Datos guardados correctamente")
-                                }
+                                scope.launch { snackbarHostState.showSnackbar("Datos guardados correctamente") }
                             },
                             onFailure = {
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Error al guardar los datos")
-                                }
+                                scope.launch { snackbarHostState.showSnackbar("Error al guardar los datos") }
                             }
                         )
                     }
@@ -323,7 +274,7 @@ fun GestionarNegocioScreen(navController: NavHostController) {
                 Text("Guardar cambios", color = Color.White)
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(Modifier.height(12.dp))
 
             Button(
                 onClick = {
@@ -338,30 +289,25 @@ fun GestionarNegocioScreen(navController: NavHostController) {
             }
         }
     }
-    val context = LocalContext.current
 
     if (showLogoDialog) {
         AlertDialog(
             onDismissRequest = { showLogoDialog = false },
             title = { Text("Seleccionar logo") },
-            text = { Text("¿De dónde quieres seleccionar la imagen?") },
+            text = { Text("¿Desde dónde deseas seleccionar el logo?") },
             confirmButton = {
                 TextButton(onClick = {
                     showLogoDialog = false
                     val uri = crearArchivoImagen(context)
                     tempCameraUri = uri
                     takePhotoLauncher.launch(uri)
-                }) {
-                    Text("Abrir cámara")
-                }
+                }) { Text("Abrir cámara") }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showLogoDialog = false
                     logoGalleryLauncher.launch("image/*")
-                }) {
-                    Text("Elegir desde galería")
-                }
+                }) { Text("Desde galería") }
             }
         )
     }
@@ -370,24 +316,20 @@ fun GestionarNegocioScreen(navController: NavHostController) {
         AlertDialog(
             onDismissRequest = { showGaleriaDialog = false },
             title = { Text("Seleccionar imágenes") },
-            text = { Text("¿De dónde quieres seleccionar las imágenes?") },
+            text = { Text("¿Desde dónde deseas seleccionar imágenes?") },
             confirmButton = {
                 TextButton(onClick = {
                     showGaleriaDialog = false
                     val uri = crearArchivoImagen(context)
                     tempCameraUri = uri
                     takePhotoLauncher.launch(uri)
-                }) {
-                    Text("Abrir cámara")
-                }
+                }) { Text("Abrir cámara") }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showGaleriaDialog = false
                     galeriaGalleryLauncher.launch("image/*")
-                }) {
-                    Text("Elegir desde galería")
-                }
+                }) { Text("Desde galería") }
             }
         )
     }
