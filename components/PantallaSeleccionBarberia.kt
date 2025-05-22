@@ -77,6 +77,15 @@ fun SeleccionBarberiaScreen(
 
     LaunchedEffect(sliderState.firstVisibleItemIndex) {
         indexActual = sliderState.firstVisibleItemIndex
+        opcionSeleccionada = "Servicios" // Cambiar tab a servicios
+        val nuevaBarberia = barberiasDisponibles.getOrNull(indexActual)
+        nuevaBarberia?.let {
+            if (!serviciosPorBarberia.contains(it.id)) {
+                FirebaseService.getServiciosNegocio(it.id, { servicios ->
+                    serviciosPorBarberia[it.id] = servicios
+                }, {})
+            }
+        }
     }
 
     val barberiaActual = barberiasDisponibles.getOrNull(indexActual)
