@@ -14,24 +14,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,13 +34,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -65,176 +57,214 @@ fun SeleccionBarberiaScreen(
     navController: NavController
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-
-    var favoritoId by remember { mutableStateOf<String?>(null) }
-    var seccionActual by remember { mutableStateOf("servicios") }
-    var serviciosActuales by remember { mutableStateOf<List<Map<String, Any>>>(emptyList()) }
-    val peluquerosPorBarberia = remember { mutableStateMapOf<String, List<Peluquero>>() }
-
-    val listState = rememberLazyListState()
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+    val sliderState = rememberLazyListState()
+
+    var indexActual by remember { mutableStateOf(0) }
+    var opcionSeleccionada by remember { mutableStateOf("Servicios") }
+    var favoritoId by remember { mutableStateOf<String?>(null) }
+    var peluquerosPorBarberia = remember { mutableStateMapOf<String, List<Peluquero>>() }
+    var serviciosPorBarberia = remember { mutableStateMapOf<String, List<Map<String, Any>>>() }
 
     LaunchedEffect(Unit) {
-        FirebaseService.getCurrentUser()?.uid?.let { uid ->
-            FirebaseService.obtenerBarberiaFavorita(uid) { favoritoId = it }
+        val uid = FirebaseService.getCurrentUser()?.uid
+        uid?.let {
+            FirebaseService.obtenerBarberiaFavorita(it) { idFavorita ->
+                favoritoId = idFavorita
+            }
         }
     }
-    val barberia = barberiasDisponibles.getOrNull(listState.firstVisibleItemIndex)
-    barberia?.let {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFF1C2A39))
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
+
+    LaunchedEffect(sliderState.firstVisibleItemIndex) {
+        indexActual = sliderState.firstVisibleItemIndex
+    }
+
+    val barberiaActual = barberiasDisponibles.getOrNull(indexActual)
+
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF1C2A39))) {
+        LazyRow(
+            state = sliderState,
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(horizontal = 24.dp)
         ) {
-            Box {
-                Image(
-                    painter = rememberAsyncImagePainter(barberia.galeria.firstOrNull()),
-                    contentDescription = "Imagen principal",
+            items(barberiasDisponibles.size) { index ->
+                val barberia = barberiasDisponibles[index]
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp),
-                    contentScale = ContentScale.Crop
-                )
-                Image(
-                    painter = rememberAsyncImagePainter(barberia.logoUrl),
-                    contentDescription = "Logo",
-                    modifier = Modifier
-                        .size(80.dp)
-                        .padding(8.dp)
-                        .clip(CircleShape)
+                        .width(screenWidth * 0.85f)
+                        .clip(RoundedCornerShape(16.dp))
                         .background(Color.White)
-                        .align(Alignment.BottomStart)
-                        .offset(y = 40.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(48.dp))
-            Text(barberia.nombre.uppercase(), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Text("${barberia.direccion} • Abierto hasta ${barberia.horaCierre}", fontSize = 14.sp, color = Color.Gray)
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White)
-                    .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                BotonAccion("Servicios", Icons.Default.ContentCut, seccionActual == "servicios") {
-                    seccionActual = "servicios"
-                    FirebaseService.getServiciosNegocio(barberia.id, {
-                        serviciosActuales = it
-                    }, {})
-                }
-                BotonAccion("Staff", Icons.Default.Groups, seccionActual == "staff") {
-                    seccionActual = "staff"
-                    if (!peluquerosPorBarberia.containsKey(barberia.id)) {
-                        FirebaseService.getPeluquerosDelNegocio(barberia.id) {
-                            peluquerosPorBarberia[barberia.id] = it
-                        }
-                    }
-                }
-                BotonAccion("Favorito", Icons.Default.Favorite, favoritoId == barberia.id) {
-                    FirebaseService.getCurrentUser()?.uid?.let { uid ->
-                        if (favoritoId == barberia.id) {
-                            FirebaseService.quitarBarberiaFavoritaCliente(uid, { favoritoId = null }, {})
-                        } else {
-                            FirebaseService.guardarBarberiaFavoritaCliente(uid, barberia.id, { favoritoId = barberia.id }, {})
-                        }
-                    }
-                }
-                BotonAccion("Mapa", Icons.Default.LocationOn, false) {
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        data = Uri.parse("geo:0,0?q=${Uri.encode(barberia.direccion)}")
-                        setPackage("com.google.android.apps.maps")
-                    }
-                    context.startActivity(intent)
-                }
-                BotonAccion("Llamar", Icons.Default.Call, false) {
-                    val intent = Intent(Intent.ACTION_DIAL).apply {
-                        data = Uri.parse("tel:${barberia.telefono}")
-                    }
-                    context.startActivity(intent)
-                }
-            }
-            if (seccionActual == "servicios") {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    serviciosActuales.forEach {
-                        val nombre = it["nombre"]?.toString() ?: ""
-                        val precio = it["precio"]?.toString() ?: "0"
-                        val duracion = it["duracion"]?.toString() ?: "0"
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.White, RoundedCornerShape(8.dp))
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.ContentCut, contentDescription = null, tint = Color.Black)
-                            Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(nombre, fontWeight = FontWeight.Bold, color = Color.Black)
-                                Text("⏱ $duracion min", fontSize = 12.sp, color = Color.Gray)
-                            }
-                            Text("€ $precio", color = Color(0xFF00C853), fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-            if (seccionActual == "staff") {
-                val peluqueros = peluquerosPorBarberia[barberia.id] ?: emptyList()
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    peluqueros.forEach {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.White, RoundedCornerShape(8.dp))
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Person, contentDescription = null, tint = Color.Black)
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text("${it.nombre} ${it.apellidos}", fontWeight = FontWeight.Bold, color = Color.Black)
-                                Text("Peluquero", fontSize = 12.sp, color = Color.Gray)
-                            }
-                        }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Image(
+                            painter = rememberAsyncImagePainter(barberia.galeria.firstOrNull()),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxWidth().height(160.dp),
+                            contentScale = ContentScale.Crop
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Image(
+                            painter = rememberAsyncImagePainter(barberia.logoUrl),
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp).clip(CircleShape).background(Color.White)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(barberia.nombre, color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text(barberia.direccion, color = Color.DarkGray, fontSize = 12.sp)
                     }
                 }
             }
         }
-    }
-}
 
-@Composable
-fun BotonAccion(texto: String, icono: ImageVector, seleccionado: Boolean, onClick: () -> Unit) {
-    val background = if (seleccionado) Color(0xFF1C2A39) else Color.White
-    val color = if (seleccionado) Color.White else Color.Black
+        Spacer(modifier = Modifier.height(16.dp))
 
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .width(72.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(background)
-            .clickable { onClick() }
-            .padding(8.dp)
-    ) {
-        Icon(icono, contentDescription = texto, tint = color, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.height(4.dp))
-        Text(texto, color = color, fontSize = 10.sp)
+        // Menú superior
+        Row(
+            modifier = Modifier.fillMaxWidth().background(Color(0xFFFF6680)).padding(8.dp),
+            horizontalArrangement = Arrangement.SpaceAround
+        ) {
+            val opciones = listOf("Servicios", "Peluqueros", "Mapa", "Llamar")
+            opciones.forEach { opcion ->
+                Text(
+                    opcion,
+                    color = if (opcionSeleccionada == opcion) Color.White else Color.Black,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (opcionSeleccionada == opcion) Color(0xFF1C2A39) else Color.Transparent)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .clickable {
+                            opcionSeleccionada = opcion
+
+                            if (opcion == "Peluqueros") {
+                                barberiaActual?.let {
+                                    if (!peluquerosPorBarberia.contains(it.id)) {
+                                        FirebaseService.getPeluquerosDelNegocio(it.id) { peluqueros ->
+                                            peluquerosPorBarberia[it.id] = peluqueros
+                                        }
+                                    }
+                                }
+                            } else if (opcion == "Servicios") {
+                                barberiaActual?.let {
+                                    if (!serviciosPorBarberia.contains(it.id)) {
+                                        FirebaseService.getServiciosNegocio(it.id, { servicios ->
+                                            serviciosPorBarberia[it.id] = servicios
+                                        }, {})
+                                    }
+                                }
+                            } else if (opcion == "Mapa") {
+                                barberiaActual?.let {
+                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                        data = Uri.parse("geo:0,0?q=${Uri.encode(it.direccion)}")
+                                        setPackage("com.google.android.apps.maps")
+                                    }
+                                    context.startActivity(intent)
+                                }
+                            } else if (opcion == "Llamar") {
+                                barberiaActual?.let {
+                                    val intent = Intent(Intent.ACTION_DIAL).apply {
+                                        data = Uri.parse("tel:${it.telefono}")
+                                    }
+                                    context.startActivity(intent)
+                                }
+                            }
+                        }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Contenido dinámico
+        when (opcionSeleccionada) {
+            "Servicios" -> {
+                val servicios = barberiaActual?.let { serviciosPorBarberia[it.id] } ?: emptyList()
+                Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                    servicios.forEach { servicio ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF2C3E50))
+                                .padding(12.dp)
+                                .padding(bottom = 8.dp)
+                        ) {
+                            Column {
+                                Text(servicio["nombre"].toString(), color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("\u23F0 ${servicio["duracion"]} min", color = Color.LightGray, fontSize = 12.sp)
+                                Text("\u20AC ${servicio["precio"]}", color = Color(0xFF00C853), fontSize = 14.sp)
+                            }
+
+
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                }
+            }
+            "Peluqueros" -> {
+                val peluqueros = barberiaActual?.let { peluquerosPorBarberia[it.id] } ?: emptyList()
+                Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                    peluqueros.forEach { peluquero ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF2C3E50))
+                                .padding(12.dp)
+                                .padding(bottom = 8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.Gray),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(peluquero.nombre.firstOrNull()?.toString() ?: "?", color = Color.White)
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("${peluquero.nombre} ${peluquero.apellidos}", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text(peluquero.email, color = Color.LightGray, fontSize = 12.sp)
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Botón Favorito
+        barberiaActual?.let { barberia ->
+            val esFavorita = favoritoId == barberia.id
+            Button(
+                onClick = {
+                    val clienteId = FirebaseService.getCurrentUser()?.uid ?: return@Button
+                    if (esFavorita) {
+                        FirebaseService.quitarBarberiaFavoritaCliente(clienteId, {
+                            favoritoId = null
+                        }, {})
+                    } else {
+                        FirebaseService.guardarBarberiaFavoritaCliente(clienteId, barberia.id, {
+                            favoritoId = barberia.id
+                        }, {})
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 48.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (esFavorita) Color.Red else Color.Gray,
+                    contentColor = Color.White
+                )
+            ) {
+                Icon(
+                    imageVector = if (esFavorita) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = null
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(if (esFavorita) "Quitar de favoritos" else "Marcar como favorito")
+            }
+        }
     }
 }
