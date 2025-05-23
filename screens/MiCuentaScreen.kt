@@ -63,7 +63,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
 import com.github.jetbrains.rssreader.androidApp.R
-import com.github.jetbrains.rssreader.androidApp.components.ChatBotCliente
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -312,7 +311,7 @@ fun MiCuentaScreen(navController: NavHostController) {
                 )
             }
 
-            ChatBotCliente()
+            //ChatBotCliente()
         }
     }
 }

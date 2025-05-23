@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -69,6 +70,9 @@ fun SeleccionBarberiaScreen(
     var peluquerosPorBarberia = remember { mutableStateMapOf<String, List<Peluquero>>() }
     var serviciosPorBarberia = remember { mutableStateMapOf<String, List<Map<String, Any>>>() }
 
+    var mostrarDialogoConfirmacion by remember { mutableStateOf(false) }
+    var nombreBarberiaSeleccionada by remember { mutableStateOf("") }
+
     LaunchedEffect(Unit) {
         val uid = FirebaseService.getCurrentUser()?.uid
         uid?.let {
@@ -82,6 +86,15 @@ fun SeleccionBarberiaScreen(
         indexActual = sliderState.firstVisibleItemIndex
         opcionSeleccionada = "Servicios"
         scrollState.animateScrollTo(0)
+
+        val barberia = barberiasDisponibles.getOrNull(indexActual)
+        barberia?.let {
+            if (!serviciosPorBarberia.contains(it.id)) {
+                FirebaseService.getServiciosNegocio(it.id, { servicios ->
+                    serviciosPorBarberia[it.id] = servicios
+                }, {})
+            }
+        }
     }
 
     val barberiaActual = barberiasDisponibles.getOrNull(indexActual)
@@ -190,11 +203,13 @@ fun SeleccionBarberiaScreen(
                                 .padding(bottom = 12.dp)
                         ) {
                             Text(servicio["nombre"].toString(), color = Color.White, fontWeight = FontWeight.Bold)
-                            Text("\u23F0 ${servicio["duracion"]} min", color = Color.LightGray, fontSize = 12.sp)
-                            Text("\u20AC ${servicio["precio"]}", color = Color(0xFF00C853), fontSize = 14.sp)
+                            Text("Duración: \u23F0 ${servicio["duracion"]} min", color = Color.LightGray, fontSize = 12.sp)
+                            Text("Precio: ${servicio["precio"]} €", color = Color(0xFF00C853), fontSize = 14.sp)
                         }
+                        Spacer(modifier = Modifier.height(18.dp))
                     }
                 }
+
                 "Peluqueros" -> {
                     val peluqueros = barberiaActual?.let { peluquerosPorBarberia[it.id] } ?: emptyList()
                     peluqueros.forEach { peluquero ->
@@ -238,6 +253,8 @@ fun SeleccionBarberiaScreen(
                     } else {
                         FirebaseService.guardarBarberiaFavoritaCliente(clienteId, barberia.id, {
                             favoritoId = barberia.id
+                            nombreBarberiaSeleccionada = barberia.nombre
+                            mostrarDialogoConfirmacion = true
                         }, {})
                     }
                 },
@@ -253,6 +270,30 @@ fun SeleccionBarberiaScreen(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(if (esFavorita) "Quitar de favoritos" else "Marcar como favorito")
+            }
+
+            if (mostrarDialogoConfirmacion) {
+                AlertDialog(
+                    onDismissRequest = { mostrarDialogoConfirmacion = false },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                mostrarDialogoConfirmacion = false
+                                navController.navigate("home_cliente") {
+                                    popUpTo("seleccion_barberia") { inclusive = true }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00C853))
+                        ) {
+                            Text("OK", color = Color.White)
+                        }
+                    },
+                    title = { Text("¡Barbería seleccionada!", fontWeight = FontWeight.Bold) },
+                    text = {
+                        Text("Gracias por seleccionar la barbería \"$nombreBarberiaSeleccionada\" como favorita.\n\nAhora podrás reservar cita en este local.")
+                    },
+                    containerColor = Color.White
+                )
             }
         }
     }

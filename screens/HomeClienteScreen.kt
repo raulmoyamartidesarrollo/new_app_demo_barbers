@@ -6,7 +6,6 @@ import android.Manifest
 import android.os.Build
 import android.util.Log
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -30,7 +28,6 @@ import androidx.compose.material.IconButton
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,7 +38,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -54,7 +50,6 @@ import com.github.jetbrains.rssreader.androidApp.FirebaseService
 import com.github.jetbrains.rssreader.androidApp.HorarioDia
 import com.github.jetbrains.rssreader.androidApp.Peluquero
 import com.github.jetbrains.rssreader.androidApp.calcularHorasDisponiblesSimple
-import com.github.jetbrains.rssreader.androidApp.components.ChatBotCliente
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
@@ -235,7 +230,7 @@ fun HomeClienteScreen(navController: NavHostController) {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Text("Fidelización", fontSize = 18.sp, fontWeight = FontWeight.Medium, color = textoSecundario)
+                Text("Recomendaciones para ti", fontSize = 18.sp, fontWeight = FontWeight.Medium, color = textoSecundario)
                 Card(
                     shape = RoundedCornerShape(20.dp),
                     backgroundColor = cardColor,
@@ -243,32 +238,16 @@ fun HomeClienteScreen(navController: NavHostController) {
                     modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
                 ) {
                     Column(modifier = Modifier.padding(20.dp)) {
-                        Text("COMPLETA Y GANA 1 CORTE", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = textoPrincipal)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        repeat(2) { fila ->
-                            Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                                repeat(4) { columna ->
-                                    val index = fila * 4 + columna
-                                    Box(
-                                        modifier = Modifier
-                                            .size(50.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(Color.White)
-                                            .border(2.dp, if (index < completadas) Color(0xFF00FF41) else Color.LightGray, RoundedCornerShape(12.dp)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        if (index < completadas) {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = "Hecho",
-                                                tint = Color(0xFF00FF41),
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(12.dp))
+                        Text("💇 Corte clásico + Barba", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = textoPrincipal)
+                        Text("Perfecto para una renovación completa antes del fin de semana", color = textoSecundario, fontSize = 14.sp)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = { navController.navigate("pedir_cita") },
+                            colors = ButtonDefaults.buttonColors(backgroundColor = acento),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Reservar ahora", color = Color.White)
                         }
                     }
                 }
@@ -299,7 +278,7 @@ fun HomeClienteScreen(navController: NavHostController) {
                 Spacer(modifier = Modifier.height(40.dp))
             }
 
-            ChatBotCliente()
+            //ChatBotCliente()
 
             if (showLogoutDialog) {
                 AlertDialog(
