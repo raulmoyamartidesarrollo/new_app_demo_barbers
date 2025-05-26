@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
@@ -56,7 +55,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import coil.compose.AsyncImage
 import com.github.jetbrains.rssreader.androidApp.R
 import com.github.jetbrains.rssreader.androidApp.components.GoogleAuthUIClient
 import com.github.jetbrains.rssreader.androidApp.utils.guardarTokenEnFirestore
@@ -345,7 +343,7 @@ fun LoginScreen(navController: NavHostController) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Button(
+            /*Button(
                 onClick = {
                     focusManager.clearFocus()
                     CoroutineScope(Dispatchers.Main).launch {
@@ -374,7 +372,7 @@ fun LoginScreen(navController: NavHostController) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Iniciar sesión con Google")
                 }
-            }
+            } */
 
             Spacer(modifier = Modifier.height(20.dp))
 
